@@ -1,12 +1,14 @@
 package com.taxrecordsportal.tax_records_portal_backend.analytics_domain;
 
-import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.dto.*;
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.dto.accountant.*;
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.dto.system.*;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 import static com.taxrecordsportal.tax_records_portal_backend.common.util.SecurityUtil.getCurrentUser;
@@ -17,6 +19,40 @@ import static com.taxrecordsportal.tax_records_portal_backend.common.util.Securi
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
+
+    // --- System-wide (Manager only) ---
+
+    @GetMapping("/system")
+    @PreAuthorize("hasAuthority('analytics.system.view')")
+    public ResponseEntity<SystemAnalyticsResponse> getSystemAnalytics() {
+        return ResponseEntity.ok(analyticsService.getSystemAnalytics());
+    }
+
+    @GetMapping("/task-completion-trend")
+    @PreAuthorize("hasAuthority('analytics.system.view')")
+    public ResponseEntity<TaskCompletionTrendResponse> getTaskCompletionTrend(
+            @RequestParam(defaultValue = "7d") String range) {
+        return ResponseEntity.ok(analyticsService.getTaskCompletionTrend(range));
+    }
+
+    @GetMapping("/approval-rate")
+    @PreAuthorize("hasAuthority('analytics.system.view')")
+    public ResponseEntity<TaskApprovalRateResponse> getTaskApprovalRate(
+            @RequestParam(defaultValue = "7d") String range) {
+        return ResponseEntity.ok(analyticsService.getTaskApprovalRate(range));
+    }
+
+    @GetMapping("/accountant-workload")
+    @PreAuthorize("hasAuthority('analytics.system.view')")
+    public ResponseEntity<List<AccountantWorkloadItemResponse>> getAccountantWorkload() {
+        return ResponseEntity.ok(analyticsService.getAccountantWorkload());
+    }
+
+    @GetMapping("/tasks-by-category")
+    @PreAuthorize("hasAuthority('analytics.system.view')")
+    public ResponseEntity<List<TasksByCategorySystemItem>> getSystemTasksByCategory() {
+        return ResponseEntity.ok(analyticsService.getSystemTasksByCategory());
+    }
 
     // --- me variants ---
 

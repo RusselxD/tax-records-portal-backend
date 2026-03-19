@@ -4,7 +4,10 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.Role;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.RoleKey;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,4 +28,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     List<User> findByRole_KeyInAndStatus(List<RoleKey> roleKeys, UserStatus status);
 
     List<User> findByRoleKey(RoleKey roleKey);
+
+    @Query("SELECT COUNT(u) FROM User u WHERE u.role.key = :roleKey AND u.createdAt >= :since")
+    long countByRoleKeyAndCreatedAtSince(@Param("roleKey") RoleKey roleKey, @Param("since") Instant since);
 }

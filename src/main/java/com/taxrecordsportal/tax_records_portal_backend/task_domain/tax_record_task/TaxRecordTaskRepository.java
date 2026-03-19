@@ -1,5 +1,8 @@
 package com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task;
 
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ClientDisplayNameProjection;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.DashboardStatsProjection;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ReviewerTaskStatsProjection;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
@@ -11,19 +14,14 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.CategoryStatsProjection;
-import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.TaskSummaryProjection;
-import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ClientDisplayNameProjection;
-import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ClientTaskMetrics;
-import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.DashboardStatsProjection;
-import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ReviewerTaskStatsProjection;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface TaxRecordTaskRepository extends JpaRepository<TaxRecordTask, UUID>, JpaSpecificationExecutor<TaxRecordTask> {
+public interface TaxRecordTaskRepository extends JpaRepository<TaxRecordTask, UUID>,
+        JpaSpecificationExecutor<TaxRecordTask>,
+        TaxRecordTaskAnalyticsRepository {
 
     @Override
     @EntityGraph(attributePaths = {"client", "category", "subCategory", "taskName", "createdBy"})
@@ -165,7 +163,7 @@ public interface TaxRecordTaskRepository extends JpaRepository<TaxRecordTask, UU
             @Param("userId") UUID userId,
             @Param("status") TaxRecordTaskStatus status);
 
-    // --- Dashboard stats (single query, scoped to assigned user) ---
+    // --- Dashboard stats ---
 
     @Query(nativeQuery = true, value = """
             SELECT COUNT(*) FILTER (WHERE t.status = 'OPEN') AS openTasks,
@@ -235,68 +233,4 @@ public interface TaxRecordTaskRepository extends JpaRepository<TaxRecordTask, UU
     ReviewerTaskStatsProjection findReviewerTaskStatsByUserId(
             @Param("userId") UUID userId,
             @Param("todayStart") Instant todayStart);
-
-    // --- Analytics queries ---
-
-    @Query(nativeQuery = true, value = """
-            SELECT COUNT(*) FILTER (WHERE t.status = 'OPEN') AS open,
-                   COUNT(*) FILTER (WHERE t.status = 'SUBMITTED') AS submitted,
-                   COUNT(*) FILTER (WHERE t.status = 'REJECTED') AS rejected,
-                   COUNT(*) FILTER (WHERE t.status = 'APPROVED_FOR_FILING') AS approvedForFiling,
-                   COUNT(*) FILTER (WHERE t.status = 'FILED') AS filed,
-                   COUNT(*) FILTER (WHERE t.status = 'COMPLETED') AS completed,
-                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND t.deadline < :now) AS overdue
-            FROM tax_record_tasks t
-            JOIN tax_record_task_accountants ta ON ta.task_id = t.id
-            WHERE ta.user_id = :userId
-            """)
-    TaskSummaryProjection findTaskSummaryByUserId(
-            @Param("userId") UUID userId,
-            @Param("now") Instant now);
-
-    @Query(nativeQuery = true, value = """
-            SELECT c.name AS category,
-                   COUNT(t.id) AS total,
-                   COUNT(t.id) FILTER (WHERE t.status <> 'COMPLETED') AS active,
-                   COUNT(t.id) FILTER (WHERE t.status = 'COMPLETED') AS completed
-            FROM tax_record_tasks t
-            JOIN tax_record_task_accountants ta ON ta.task_id = t.id
-            JOIN tax_task_categories c ON c.id = t.category_id
-            WHERE ta.user_id = :userId
-            GROUP BY c.name
-            ORDER BY total DESC
-            """)
-    List<CategoryStatsProjection> findCategoryStatsByUserId(@Param("userId") UUID userId);
-
-    // --- Batch metrics (replaces N+1 per-client count queries) ---
-
-    @Query(nativeQuery = true, value = """
-            SELECT t.client_id AS clientId,
-                   COUNT(*) AS totalTasks,
-                   COUNT(*) FILTER (WHERE t.status <> 'COMPLETED') AS pendingTasks,
-                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND t.deadline < :now) AS overdueTasks,
-                   MIN(t.deadline) FILTER (WHERE t.status <> 'COMPLETED') AS nearestDeadline
-            FROM tax_record_tasks t
-            WHERE t.client_id IN (:clientIds)
-            GROUP BY t.client_id
-            """)
-    List<ClientTaskMetrics> findTaskMetricsByClientIds(
-            @Param("clientIds") List<UUID> clientIds,
-            @Param("now") Instant now);
-
-    @Query(nativeQuery = true, value = """
-            SELECT t.client_id AS clientId,
-                   COUNT(*) AS totalTasks,
-                   COUNT(*) FILTER (WHERE t.status <> 'COMPLETED') AS pendingTasks,
-                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND t.deadline < :now) AS overdueTasks,
-                   MIN(t.deadline) FILTER (WHERE t.status <> 'COMPLETED') AS nearestDeadline
-            FROM tax_record_tasks t
-            JOIN tax_record_task_accountants ta ON ta.task_id = t.id
-            WHERE t.client_id IN (:clientIds) AND ta.user_id = :userId
-            GROUP BY t.client_id
-            """)
-    List<ClientTaskMetrics> findTaskMetricsByClientIdsAndUserId(
-            @Param("clientIds") List<UUID> clientIds,
-            @Param("userId") UUID userId,
-            @Param("now") Instant now);
 }

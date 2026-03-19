@@ -1,7 +1,10 @@
 package com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task_log;
 
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.ApprovalRateProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.OnTimeStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.QualityStatsProjection;
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemLogStatsProjection;
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemOnTimeStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ReviewerLogStatsProjection;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -96,4 +99,71 @@ public interface TaxRecordTaskLogRepository extends JpaRepository<TaxRecordTaskL
             FROM task_metrics
             """)
     QualityStatsProjection findQualityStatsByUser(@Param("userId") UUID userId);
+
+    // --- System-wide analytics queries (no user scope) ---
+
+    @Query(nativeQuery = true, value = """
+            SELECT COUNT(*) FILTER (WHERE action = 'COMPLETED' AND created_at >= :monthStart) AS completedThisMonth,
+                   COUNT(*) FILTER (WHERE action = 'REJECTED' AND created_at >= :monthStart) AS rejectedThisMonth
+            FROM tax_record_task_logs
+            """)
+    SystemLogStatsProjection findSystemLogStats(@Param("monthStart") Instant monthStart);
+
+    @Query(nativeQuery = true, value = """
+            SELECT COUNT(*) AS totalCompleted,
+                   COUNT(*) FILTER (WHERE l.created_at <= t.deadline) AS completedOnTime,
+                   COUNT(*) FILTER (WHERE l.created_at > t.deadline) AS completedLate,
+                   COALESCE(AVG(EXTRACT(EPOCH FROM (l.created_at - t.created_at)) / 86400.0), 0) AS avgCompletionDays
+            FROM tax_record_task_logs l
+            JOIN tax_record_tasks t ON t.id = l.task_id
+            WHERE l.action = 'COMPLETED'
+            """)
+    SystemOnTimeStatsProjection findSystemOnTimeAndAvgStats();
+
+    @Query(nativeQuery = true, value = """
+            WITH task_metrics AS (
+                SELECT t.id,
+                       COUNT(rl.id) AS rejected_count
+                FROM tax_record_tasks t
+                LEFT JOIN tax_record_task_logs rl ON rl.task_id = t.id AND rl.action = 'REJECTED'
+                WHERE EXISTS (
+                    SELECT 1 FROM tax_record_task_logs sl
+                    WHERE sl.task_id = t.id AND sl.action = 'SUBMITTED'
+                )
+                GROUP BY t.id
+            )
+            SELECT COUNT(*) AS totalSubmitted,
+                   COUNT(*) FILTER (WHERE rejected_count = 0) AS firstAttemptApproved,
+                   COALESCE(AVG(rejected_count::float), 0) AS avgRejectionCycles
+            FROM task_metrics
+            """)
+    QualityStatsProjection findSystemQualityStats();
+
+    @Query(nativeQuery = true, value = """
+            SELECT COUNT(*) FILTER (WHERE action = 'APPROVED') AS approved,
+                   COUNT(*) FILTER (WHERE action = 'REJECTED') AS rejected
+            FROM tax_record_task_logs
+            WHERE created_at >= :since
+            """)
+    ApprovalRateProjection findApprovalRateSince(@Param("since") Instant since);
+
+    @Query(nativeQuery = true, value = """
+            SELECT TO_CHAR(date_trunc('day', created_at AT TIME ZONE 'Asia/Manila'), 'YYYY-MM-DD') AS period,
+                   COUNT(*) AS cnt
+            FROM tax_record_task_logs
+            WHERE action = 'COMPLETED' AND created_at >= :since
+            GROUP BY date_trunc('day', created_at AT TIME ZONE 'Asia/Manila')
+            ORDER BY date_trunc('day', created_at AT TIME ZONE 'Asia/Manila')
+            """)
+    List<Object[]> findDailyCompletionsSince(@Param("since") Instant since);
+
+    @Query(nativeQuery = true, value = """
+            SELECT TO_CHAR(date_trunc('week', created_at AT TIME ZONE 'Asia/Manila'), 'YYYY-MM-DD') AS period,
+                   COUNT(*) AS cnt
+            FROM tax_record_task_logs
+            WHERE action = 'COMPLETED' AND created_at >= :since
+            GROUP BY date_trunc('week', created_at AT TIME ZONE 'Asia/Manila')
+            ORDER BY date_trunc('week', created_at AT TIME ZONE 'Asia/Manila')
+            """)
+    List<Object[]> findWeeklyCompletionsSince(@Param("since") Instant since);
 }

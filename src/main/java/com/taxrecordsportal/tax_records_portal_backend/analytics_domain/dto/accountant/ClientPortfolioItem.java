@@ -1,4 +1,4 @@
-package com.taxrecordsportal.tax_records_portal_backend.analytics_domain.dto;
+package com.taxrecordsportal.tax_records_portal_backend.analytics_domain.dto.accountant;
 
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientStatus;
 

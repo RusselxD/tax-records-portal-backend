@@ -1,5 +1,6 @@
 package com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task;
 
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemProfileStatsProjection;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -46,4 +47,13 @@ public interface ClientInfoTaskRepository extends JpaRepository<ClientInfoTask, 
 
     @EntityGraph(attributePaths = {"client", "client.clientInfo", "submittedBy"})
     List<ClientInfoTask> findByClient_Accountants_IdOrderBySubmittedAtDesc(UUID accountantId);
+
+    @Query(nativeQuery = true, value = """
+            SELECT COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE type = 'ONBOARDING') AS onboarding,
+                   COUNT(*) FILTER (WHERE type = 'PROFILE_UPDATE') AS updates
+            FROM client_info_tasks
+            WHERE status = 'SUBMITTED'
+            """)
+    SystemProfileStatsProjection findSystemProfileStats();
 }

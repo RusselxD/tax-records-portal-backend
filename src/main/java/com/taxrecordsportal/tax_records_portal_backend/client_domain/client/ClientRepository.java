@@ -1,6 +1,7 @@
 package com.taxrecordsportal.tax_records_portal_backend.client_domain.client;
 
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.ClientStatusCountProjection;
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemClientStatsProjection;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -83,4 +84,14 @@ public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecif
             GROUP BY c.status
             """)
     List<ClientStatusCountProjection> countClientsByStatusForUser(@Param("userId") UUID userId);
+
+    @Query(nativeQuery = true, value = """
+            SELECT COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE c.status = 'ONBOARDING') AS onboarding,
+                   COUNT(*) FILTER (WHERE c.status = 'ACTIVE_CLIENT') AS active,
+                   COUNT(*) FILTER (WHERE c.status = 'OFFBOARDING') AS offboarding,
+                   COUNT(*) FILTER (WHERE c.status = 'INACTIVE_CLIENT') AS inactive
+            FROM clients c
+            """)
+    SystemClientStatsProjection findSystemClientStats();
 }
