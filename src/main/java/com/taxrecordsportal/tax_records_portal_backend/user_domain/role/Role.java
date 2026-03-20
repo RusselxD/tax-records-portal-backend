@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.Set;
 
@@ -38,6 +39,7 @@ public class Role {
             joinColumns = @JoinColumn(name = "role_id"),
             inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
+    @BatchSize(size = 10)
     @EqualsAndHashCode.Exclude
     @ToString.Exclude
     private Set<Permission> permissions;

@@ -22,7 +22,9 @@ import static jakarta.persistence.FetchType.LAZY;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "client_info_snapshots")
+@Table(name = "client_info_snapshots", indexes = {
+        @Index(name = "idx_snapshots_client_id", columnList = "client_id")
+})
 public class ClientInfoSnapshot {
 
     @Id

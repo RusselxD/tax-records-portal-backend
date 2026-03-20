@@ -17,7 +17,9 @@ import static jakarta.persistence.GenerationType.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "files")
+@Table(name = "files", indexes = {
+        @Index(name = "idx_files_client_id", columnList = "client_id")
+})
 public class FileEntity {
 
     @Id

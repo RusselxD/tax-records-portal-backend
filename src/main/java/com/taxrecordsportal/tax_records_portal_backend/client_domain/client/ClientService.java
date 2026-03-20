@@ -120,7 +120,7 @@ public class ClientService {
     public ClientCreateResponse createClient() {
         User currentUser = getCurrentUser();
 
-        ClientInfoTemplate template = clientInfoTemplateRepository.findAll().stream().findFirst()
+        ClientInfoTemplate template = clientInfoTemplateRepository.findFirstBy()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Client info template not found"));
 
         Client client = new Client();
@@ -137,7 +137,7 @@ public class ClientService {
 
     @Transactional(readOnly = true)
     public ClientInfoResponse getClientInfoTemplate() {
-        ClientInfoTemplate template = clientInfoTemplateRepository.findAll().stream().findFirst()
+        ClientInfoTemplate template = clientInfoTemplateRepository.findFirstBy()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Client info template not found"));
 
         return new ClientInfoResponse(
@@ -444,7 +444,7 @@ public class ClientService {
             switch (sectionKey) {
                 case "mainDetails" -> {
                     MainDetailsPatchRequest req = objectMapper.treeToValue(body, MainDetailsPatchRequest.class);
-                    info.setMainDetails(new MainDetails(req.mreCode(), req.commencementOfWork(), req.engagementStatus()));
+                    info.setMainDetails(new MainDetails(req.mreCode(), req.commencementOfWork()));
                     updateAccountants(client, req.csdOosAccountantIds(), req.qtdAccountantId());
                 }
                 case "clientInformation" -> {
@@ -510,12 +510,17 @@ public class ClientService {
                 .map(userMapper::toAccountantListItemResponse)
                 .collect(Collectors.partitioningBy(a -> a.roleKey() == RoleKey.QTD));
 
-        Optional<ClientInfoTask> latestTask = clientInfoTaskRepository
-                .findTopByClientIdAndTypeOrderBySubmittedAtDesc(client.getId(), ClientInfoTaskType.PROFILE_UPDATE);
-        boolean hasActiveTask = latestTask.map(t -> t.getStatus() != ClientInfoTaskStatus.APPROVED).orElse(false);
-        UUID activeTaskId = hasActiveTask ? latestTask.get().getId() : null;
-        ClientInfoTaskType activeTaskType = hasActiveTask ? latestTask.get().getType() : null;
-        ClientInfoTaskStatus lastReviewStatus = latestTask.map(ClientInfoTask::getStatus).orElse(null);
+        // single query fetches latest task per type — replaces two separate queries
+        List<ClientInfoTask> latestTasks = clientInfoTaskRepository
+                .findLatestByClientIdGroupedByType(client.getId());
+
+        Optional<ClientInfoTask> latestProfileUpdate = latestTasks.stream()
+                .filter(t -> t.getType() == ClientInfoTaskType.PROFILE_UPDATE)
+                .findFirst();
+        boolean hasActiveTask = latestProfileUpdate.map(t -> t.getStatus() != ClientInfoTaskStatus.APPROVED).orElse(false);
+        UUID activeTaskId = hasActiveTask ? latestProfileUpdate.get().getId() : null;
+        ClientInfoTaskType activeTaskType = hasActiveTask ? latestProfileUpdate.get().getType() : null;
+        ClientInfoTaskStatus lastReviewStatus = latestProfileUpdate.map(ClientInfoTask::getStatus).orElse(null);
 
         String pocEmail = client.getUser() != null ? client.getUser().getEmail() : null;
         if (pocEmail == null) {
@@ -525,8 +530,9 @@ public class ClientService {
             }
         }
 
-        boolean isProfileApproved = clientInfoTaskRepository.existsByClientIdAndTypeAndStatus(
-                client.getId(), ClientInfoTaskType.ONBOARDING, ClientInfoTaskStatus.APPROVED);
+        boolean isProfileApproved = latestTasks.stream()
+                .anyMatch(t -> t.getType() == ClientInfoTaskType.ONBOARDING
+                        && t.getStatus() == ClientInfoTaskStatus.APPROVED);
 
         return new ClientInfoHeaderResponse(
                 displayName,
@@ -559,6 +565,56 @@ public class ClientService {
                 ci.birComplianceBreakdown(), ci.dtiDetails(), ci.secDetails(),
                 ci.sssDetails(), ci.philhealthDetails(), ci.hdmfDetails(), ci.cityHallDetails()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public ClientInfoHeaderResponse getMyClientInfoHeader() {
+        UUID userId = getCurrentUser().getId();
+        Client client = clientRepository.findWithInfoAccountantsAndUserByUserId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+        ClientInfo info = requireClientInfo(client);
+        return buildClientInfoHeaderResponse(client, info);
+    }
+
+    @Transactional(readOnly = true)
+    public String getMyClientInfoSection(String sectionKey) {
+        UUID userId = getCurrentUser().getId();
+        UUID clientId = clientRepository.findClientIdByUserId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+
+        String json = switch (sectionKey) {
+            case "mainDetails" -> clientInfoRepository.findMainDetailsByClientId(clientId);
+            case "clientInformation" -> clientInfoRepository.findClientInformationByClientId(clientId);
+            case "corporateOfficerInformation" -> clientInfoRepository.findCorporateOfficerInformationByClientId(clientId);
+            case "accessCredentials" -> clientInfoRepository.findAccessCredentialsByClientId(clientId);
+            case "scopeOfEngagement" -> clientInfoRepository.findScopeOfEngagementByClientId(clientId);
+            case "professionalFees" -> clientInfoRepository.findProfessionalFeesByClientId(clientId);
+            case "onboardingDetails" -> clientInfoRepository.findOnboardingDetailsByClientId(clientId);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid section key: " + sectionKey);
+        };
+
+        if (json == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Client info not found");
+        }
+        return json;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasEngagementLetter() {
+        UUID userId = getCurrentUser().getId();
+        return clientInfoRepository.existsEngagementLetterByUserId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public UUID getEngagementLetterFileId() {
+        UUID userId = getCurrentUser().getId();
+        String fileId = clientInfoRepository.findEngagementLetterFileIdByUserId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+        if (fileId == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No engagement letter uploaded");
+        }
+        return UUID.fromString(fileId);
     }
 
     @Transactional

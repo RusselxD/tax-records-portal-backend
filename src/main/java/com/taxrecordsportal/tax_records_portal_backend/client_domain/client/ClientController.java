@@ -8,13 +8,19 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.ClientInfoTaskService;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ArchiveSnapshotResponse;
+import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileEntity;
+import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -24,6 +30,7 @@ public class ClientController {
 
     private final ClientService clientService;
     private final ClientInfoTaskService clientInfoTaskService;
+    private final FileService fileService;
 
     @GetMapping
     @PreAuthorize("hasAuthority('client.view.all') or hasAuthority('client.view.own')")
@@ -66,6 +73,33 @@ public class ClientController {
     @PreAuthorize("hasAuthority('client_info.create')")
     public ResponseEntity<ClientInfoResponse> getClientInfoTemplate() {
         return ResponseEntity.ok(clientService.getClientInfoTemplate());
+    }
+
+    @GetMapping("/me/info")
+    public ResponseEntity<ClientInfoHeaderResponse> getMyClientInfoHeader() {
+        return ResponseEntity.ok(clientService.getMyClientInfoHeader());
+    }
+
+    @GetMapping(value = "/me/info/{sectionKey}", produces = "application/json")
+    public ResponseEntity<String> getMyClientInfoSection(@PathVariable String sectionKey) {
+        return ResponseEntity.ok(clientService.getMyClientInfoSection(sectionKey));
+    }
+
+    @GetMapping("/me/engagement-letter-exists")
+    public ResponseEntity<Map<String, Boolean>> hasEngagementLetter() {
+        return ResponseEntity.ok(Map.of("exists", clientService.hasEngagementLetter()));
+    }
+
+    @GetMapping("/me/engagement-letter")
+    public ResponseEntity<Resource> downloadEngagementLetter() {
+        UUID fileId = clientService.getEngagementLetterFileId();
+        FileEntity fileEntity = fileService.getFileEntity(fileId);
+        Resource resource = fileService.previewById(fileId);
+        String contentType = fileService.resolveMediaType(fileEntity.getName());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileEntity.getName() + "\"")
+                .body(resource);
     }
 
     @GetMapping("/{clientId}/summary")

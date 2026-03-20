@@ -55,7 +55,7 @@ public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecif
     @EntityGraph(attributePaths = {"clientInfo", "accountants"})
     List<Client> findByAccountantsIdAndStatusNot(UUID userId, ClientStatus status);
 
-    @EntityGraph(attributePaths = {"clientInfo", "accountants"})
+    @EntityGraph(attributePaths = {"clientInfo", "accountants", "accountants.role"})
     List<Client> findByStatusAndAccountantsIsNotEmpty(ClientStatus status);
 
     @EntityGraph(attributePaths = {"accountants"})
@@ -72,6 +72,12 @@ public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecif
 
     @EntityGraph(attributePaths = {"createdBy", "clientInfo", "accountants"})
     Optional<Client> findWithInfoCreatorAndAccountantsById(UUID id);
+
+    @EntityGraph(attributePaths = {"clientInfo", "accountants", "user"})
+    Optional<Client> findWithInfoAccountantsAndUserByUserId(UUID userId);
+
+    @Query("SELECT c.id FROM Client c WHERE c.user.id = :userId")
+    Optional<UUID> findClientIdByUserId(@Param("userId") UUID userId);
 
     @EntityGraph(attributePaths = {"accountants"})
     List<Client> findByIdIn(List<UUID> ids);

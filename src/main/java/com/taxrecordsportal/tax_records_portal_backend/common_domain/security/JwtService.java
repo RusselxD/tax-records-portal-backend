@@ -3,6 +3,7 @@ package com.taxrecordsportal.tax_records_portal_backend.common_domain.security;
 
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.permission.Permission;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.common.UserTitle;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -60,32 +61,45 @@ public class JwtService {
                 .compact();
     }
 
-    // extracts user ID from token subject
-    public String extractSubject(String token) {
+    // parses token once and returns all claims
+    private Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSignInKey())
                 .build()
                 .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
+                .getPayload();
     }
 
-    // checks if token belongs to this user and not expired
+    public String extractSubject(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> extractPermissions(String token) {
+        Object permissions = parseClaims(token).get("permissions");
+        return permissions instanceof List<?> list ? (List<String>) list : List.of();
+    }
+
+    // parses once, returns subject + permissions + validates expiry
+    @SuppressWarnings("unchecked")
+    public ParsedToken parseToken(String token) {
+        Claims claims = parseClaims(token);
+        String subject = claims.getSubject();
+        Object perms = claims.get("permissions");
+        List<String> permissions = perms instanceof List<?> list ? (List<String>) list : List.of();
+        return new ParsedToken(subject, permissions);
+    }
+
+    public record ParsedToken(String userId, List<String> permissions) {}
+
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String subject = extractSubject(token);
         User user = (User) userDetails;
         return subject.equals(user.getId().toString()) && !isTokenExpired(token);
     }
 
-    // checks expiration
     private boolean isTokenExpired(String token) {
-        return Jwts.parser()
-                .verifyWith(getSignInKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .getExpiration()
-                .before(new Date());
+        return parseClaims(token).getExpiration().before(new Date());
     }
 
     private String formatNameWithTitles(User user) {

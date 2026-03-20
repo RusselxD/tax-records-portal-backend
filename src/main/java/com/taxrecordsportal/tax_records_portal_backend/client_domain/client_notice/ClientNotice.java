@@ -13,7 +13,9 @@ import static jakarta.persistence.FetchType.LAZY;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "client_notices")
+@Table(name = "client_notices", indexes = {
+        @Index(name = "idx_client_notices_client_id", columnList = "client_id")
+})
 public class ClientNotice {
 
     @Id

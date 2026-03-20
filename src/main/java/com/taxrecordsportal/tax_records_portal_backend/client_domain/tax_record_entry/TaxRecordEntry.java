@@ -25,7 +25,9 @@ import static jakarta.persistence.GenerationType.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "tax_record_entries")
+@Table(name = "tax_record_entries", indexes = {
+        @Index(name = "idx_tre_client_id", columnList = "client_id")
+})
 public class TaxRecordEntry {
 
     @Id

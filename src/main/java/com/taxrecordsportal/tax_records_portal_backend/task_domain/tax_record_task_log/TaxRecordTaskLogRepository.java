@@ -3,6 +3,7 @@ package com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_t
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.ApprovalRateProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.OnTimeStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.QualityStatsProjection;
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemCombinedLogStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemLogStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemOnTimeStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ReviewerLogStatsProjection;
@@ -138,6 +139,46 @@ public interface TaxRecordTaskLogRepository extends JpaRepository<TaxRecordTaskL
             FROM task_metrics
             """)
     QualityStatsProjection findSystemQualityStats();
+
+    // Combined: merges findSystemLogStats + findSystemOnTimeAndAvgStats + findSystemQualityStats into 1 query
+    @Query(nativeQuery = true, value = """
+            WITH monthly_counts AS (
+                SELECT COUNT(*) FILTER (WHERE action = 'COMPLETED' AND created_at >= :monthStart) AS completedThisMonth,
+                       COUNT(*) FILTER (WHERE action = 'REJECTED' AND created_at >= :monthStart) AS rejectedThisMonth
+                FROM tax_record_task_logs
+            ),
+            on_time_stats AS (
+                SELECT COUNT(*) AS totalCompleted,
+                       COUNT(*) FILTER (WHERE l.created_at <= t.deadline) AS completedOnTime,
+                       COUNT(*) FILTER (WHERE l.created_at > t.deadline) AS completedLate,
+                       COALESCE(AVG(EXTRACT(EPOCH FROM (l.created_at - t.created_at)) / 86400.0), 0) AS avgCompletionDays
+                FROM tax_record_task_logs l
+                JOIN tax_record_tasks t ON t.id = l.task_id
+                WHERE l.action = 'COMPLETED'
+            ),
+            task_metrics AS (
+                SELECT t.id,
+                       COUNT(rl.id) AS rejected_count
+                FROM tax_record_tasks t
+                LEFT JOIN tax_record_task_logs rl ON rl.task_id = t.id AND rl.action = 'REJECTED'
+                WHERE EXISTS (
+                    SELECT 1 FROM tax_record_task_logs sl
+                    WHERE sl.task_id = t.id AND sl.action = 'SUBMITTED'
+                )
+                GROUP BY t.id
+            ),
+            quality_stats AS (
+                SELECT COUNT(*) AS totalSubmitted,
+                       COUNT(*) FILTER (WHERE rejected_count = 0) AS firstAttemptApproved,
+                       COALESCE(AVG(rejected_count::float), 0) AS avgRejectionCycles
+                FROM task_metrics
+            )
+            SELECT mc.completedThisMonth, mc.rejectedThisMonth,
+                   ot.totalCompleted, ot.completedOnTime, ot.completedLate, ot.avgCompletionDays,
+                   qs.totalSubmitted, qs.firstAttemptApproved, qs.avgRejectionCycles
+            FROM monthly_counts mc, on_time_stats ot, quality_stats qs
+            """)
+    SystemCombinedLogStatsProjection findSystemCombinedLogStats(@Param("monthStart") Instant monthStart);
 
     @Query(nativeQuery = true, value = """
             SELECT COUNT(*) FILTER (WHERE action = 'APPROVED') AS approved,

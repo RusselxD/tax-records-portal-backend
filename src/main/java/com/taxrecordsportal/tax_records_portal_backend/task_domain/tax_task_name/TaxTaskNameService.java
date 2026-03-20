@@ -6,6 +6,7 @@ import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_name
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -17,6 +18,7 @@ public class TaxTaskNameService {
     private final TaxTaskNameRepository taxTaskNameRepository;
     private final TaxTaskSubCategoryService taxTaskSubCategoryService;
 
+    @Transactional(readOnly = true)
     public List<TaxTaskNameResponse> getBySubCategory(Integer subCategoryId) {
         return taxTaskNameRepository.findBySubCategoryId(subCategoryId)
                 .stream()

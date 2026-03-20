@@ -17,6 +17,9 @@ import static jakarta.persistence.FetchType.LAZY;
 @AllArgsConstructor
 @Table(name = "user_tokens", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"user_id", "type"})
+}, indexes = {
+        @Index(name = "idx_user_tokens_token", columnList = "token"),
+        @Index(name = "idx_user_tokens_user_id", columnList = "user_id")
 })
 public class UserToken {
 

@@ -36,6 +36,18 @@ public class EmailService {
         sendHtmlEmail(to, "Activate Your Account", body);
     }
 
+    @Async
+    public void sendPasswordResetEmail(String to, String firstName, String token) {
+        String resetLink = frontendUrl + "/auth/reset-password/" + token;
+
+        Context context = new Context();
+        context.setVariable("firstName", firstName);
+        context.setVariable("resetLink", resetLink);
+
+        String body = templateEngine.process("email/password-reset", context);
+        sendHtmlEmail(to, "Reset Your Password", body);
+    }
+
     private void sendHtmlEmail(String to, String subject, String body) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

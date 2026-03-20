@@ -86,6 +86,7 @@ public class TaxTaskSubCategorySeeder implements CommandLineRunner {
     public void run(String... args) {
         List<TaxTaskCategory> categories = categoryRepository.findAll();
 
+        List<TaxTaskSubCategory> toSave = new java.util.ArrayList<>();
         for (TaxTaskCategory category : categories) {
             List<String> subCategoryNames = SUB_CATEGORIES_BY_CATEGORY.get(category.getName());
             if (subCategoryNames == null) continue;
@@ -95,9 +96,12 @@ public class TaxTaskSubCategorySeeder implements CommandLineRunner {
                     TaxTaskSubCategory subCategory = new TaxTaskSubCategory();
                     subCategory.setCategory(category);
                     subCategory.setName(name);
-                    subCategoryRepository.save(subCategory);
+                    toSave.add(subCategory);
                 }
             }
+        }
+        if (!toSave.isEmpty()) {
+            subCategoryRepository.saveAll(toSave);
         }
     }
 }

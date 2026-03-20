@@ -23,7 +23,11 @@ import static jakarta.persistence.GenerationType.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "client_info_tasks")
+@Table(name = "client_info_tasks", indexes = {
+        @Index(name = "idx_cit_client_type_status", columnList = "client_id, type, status"),
+        @Index(name = "idx_cit_submitted_at", columnList = "submitted_at"),
+        @Index(name = "idx_cit_submitted_by", columnList = "submitted_by")
+})
 public class ClientInfoTask {
 
     @Id
@@ -70,6 +74,10 @@ public class ClientInfoTask {
     @Column(name = "onboarding_details", columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
     private OnboardingDetails onboardingDetails;
+
+    @Column(name = "changed_section_keys", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private List<String> changedSectionKeys;
 
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "submitted_by")

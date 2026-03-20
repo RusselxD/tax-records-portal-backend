@@ -11,6 +11,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -28,7 +29,16 @@ import static jakarta.persistence.GenerationType.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "tax_record_tasks")
+@Table(name = "tax_record_tasks", indexes = {
+        @Index(name = "idx_trt_client_id", columnList = "client_id"),
+        @Index(name = "idx_trt_status", columnList = "status"),
+        @Index(name = "idx_trt_deadline", columnList = "deadline"),
+        @Index(name = "idx_trt_created_by", columnList = "created_by"),
+        @Index(name = "idx_trt_created_at", columnList = "created_at"),
+        @Index(name = "idx_trt_status_deadline", columnList = "status, deadline"),
+        @Index(name = "idx_trt_client_status", columnList = "client_id, status"),
+        @Index(name = "idx_trt_client_status_deadline", columnList = "client_id, status, deadline")
+})
 public class TaxRecordTask {
 
     @Id
@@ -96,8 +106,13 @@ public class TaxRecordTask {
     @JoinTable(
             name = "tax_record_task_accountants",
             joinColumns = @JoinColumn(name = "task_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id")
+            inverseJoinColumns = @JoinColumn(name = "user_id"),
+            indexes = {
+                    @Index(name = "idx_task_accountants_task_id", columnList = "task_id"),
+                    @Index(name = "idx_task_accountants_user_id", columnList = "user_id")
+            }
     )
+    @BatchSize(size = 20)
     private Set<User> assignedTo;
 
     // Computed from drill-down path: "Category > Sub Category > Task Name > Year > Period"

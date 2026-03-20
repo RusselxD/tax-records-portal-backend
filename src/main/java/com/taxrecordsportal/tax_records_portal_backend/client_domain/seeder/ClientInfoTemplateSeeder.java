@@ -1,6 +1,5 @@
 package com.taxrecordsportal.tax_records_portal_backend.client_domain.seeder;
 
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.EngagementStatus;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.dto.*;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_template.ClientInfoTemplate;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_template.ClientInfoTemplateRepository;
@@ -31,8 +30,7 @@ public class ClientInfoTemplateSeeder implements CommandLineRunner {
 
         template.setMainDetails(new MainDetails(
                 null,                   // mreCode
-                emptyDateField(),       // commencementOfWork
-                EngagementStatus.ACTIVE // engagementStatus default
+                emptyDateField()        // commencementOfWork
         ));
 
         template.setClientInformation(new ClientInformation(

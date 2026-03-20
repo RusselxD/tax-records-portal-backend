@@ -30,7 +30,11 @@ import static jakarta.persistence.FetchType.LAZY;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "users")
+@Table(name = "users", indexes = {
+        @Index(name = "idx_users_email", columnList = "email"),
+        @Index(name = "idx_users_role_id", columnList = "role_id"),
+        @Index(name = "idx_users_position_id", columnList = "position_id")
+})
 public class User implements UserDetails { // Spring security interface
 
     @Id

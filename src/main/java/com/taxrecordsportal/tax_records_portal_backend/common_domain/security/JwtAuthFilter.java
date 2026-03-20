@@ -9,12 +9,15 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -36,11 +39,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 3. extract token and user ID
-        final String token = authHeader.substring(7); // strips "Bearer "
-        final String userId;
+        final String token = authHeader.substring(7);
+        final JwtService.ParsedToken parsed;
         try {
-            userId = jwtService.extractSubject(token);
+            parsed = jwtService.parseToken(token);
         } catch (Exception e) {
             // Token is expired or invalid — skip authentication so Spring Security returns 401
             filterChain.doFilter(request, response);
@@ -48,19 +50,21 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         // if user ID found and user not yet authenticated
-        if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null){
+        if (parsed.userId() != null && SecurityContextHolder.getContext().getAuthentication() == null){
 
-            // load user from DB
-            User user = userRepository.findById(UUID.fromString(userId)).orElse(null);
+            // lightweight query — no role/permissions/position joins
+            User user = userRepository.findByIdLightweight(UUID.fromString(parsed.userId())).orElse(null);
 
-            // validate token
-            if (user != null && jwtService.isTokenValid(token, user)){
+            if (user != null) {
+                // use permissions from JWT claims instead of loading from DB
+                List<GrantedAuthority> authorities = parsed.permissions().stream()
+                        .map(p -> (GrantedAuthority) new SimpleGrantedAuthority(p))
+                        .toList();
 
-                // tell Spring this user is authenticated
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         user,
                         null,
-                        user.getAuthorities()
+                        authorities
                 );
 
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -68,7 +72,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
         }
 
-        // continue the request
         filterChain.doFilter(request, response);
     }
 }

@@ -25,11 +25,13 @@ public class NotificationService {
     private final NotificationMapper notificationMapper;
 
     @Transactional(readOnly = true)
-    public ScrollResponse<NotificationListItemResponse> getMyNotifications(int page, int size) {
-        return ScrollResponse.from(
-                notificationRepository.findByRecipientIdOrderByCreatedAtDesc(
-                        getCurrentUser().getId(), PageRequest.of(page, size))
-                        .map(notificationMapper::toListItem));
+    public ScrollResponse<NotificationListItemResponse> getMyNotifications(int page, int size, Boolean unread) {
+        UUID userId = getCurrentUser().getId();
+        var pageable = PageRequest.of(page, size);
+        var result = Boolean.TRUE.equals(unread)
+                ? notificationRepository.findByRecipientIdAndReadFalseOrderByCreatedAtDesc(userId, pageable)
+                : notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId, pageable);
+        return ScrollResponse.from(result.map(notificationMapper::toListItem));
     }
 
     @Transactional(readOnly = true)
@@ -40,15 +42,23 @@ public class NotificationService {
 
     @Transactional
     public void markAsRead(UUID notificationId) {
-        Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found"));
-
-        if (!notification.getRecipient().getId().equals(getCurrentUser().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this notification");
+        int updated = notificationRepository.markAsReadByIdAndRecipientId(notificationId, getCurrentUser().getId());
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found");
         }
+    }
 
-        notification.setRead(true);
-        notificationRepository.save(notification);
+    @Transactional
+    public void markAllAsRead() {
+        notificationRepository.markAllReadByRecipientId(getCurrentUser().getId());
+    }
+
+    @Transactional
+    public void delete(UUID notificationId) {
+        int deleted = notificationRepository.deleteByIdAndRecipientId(notificationId, getCurrentUser().getId());
+        if (deleted == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found");
+        }
     }
 
     @Transactional

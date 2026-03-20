@@ -82,6 +82,16 @@ public class BulkTaskCreateService {
         // Step 2: Per-row validation
         List<ValidatedRow> validRows = new ArrayList<>();
         boolean isQtd = currentUser.getRole().getKey() == RoleKey.QTD;
+
+        // pre-compute assigned client IDs for QTD users — avoids streaming accountants per row
+        Set<UUID> assignedClientIds = isQtd
+                ? clientMap.values().stream()
+                    .filter(c -> c.getAccountants() != null
+                            && c.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId())))
+                    .map(Client::getId)
+                    .collect(Collectors.toSet())
+                : Set.of();
+
         for (int i = 0; i < rows.size(); i++) {
             BulkTaskRowRequest row = rows.get(i);
             String error = validateRow(row, clientMap, accountantMap);
@@ -91,14 +101,9 @@ public class BulkTaskCreateService {
             }
 
             // QTD users can only create tasks for clients assigned to them
-            if (isQtd) {
-                Client client = clientMap.get(row.clientId());
-                boolean isAssigned = client.getAccountants() != null
-                        && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
-                if (!isAssigned) {
-                    errors.add(new BulkTaskError(i, "You are not assigned to this client"));
-                    continue;
-                }
+            if (isQtd && !assignedClientIds.contains(row.clientId())) {
+                errors.add(new BulkTaskError(i, "You are not assigned to this client"));
+                continue;
             }
             validRows.add(new ValidatedRow(i, row,
                     clientMap.get(row.clientId()),

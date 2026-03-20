@@ -297,7 +297,9 @@ public class UserService {
         userRepository.save(currentUser);
     }
 
-    public Resource getAvatarResource(UUID userId) {
+    public record AvatarResult(Resource resource, String mediaType) {}
+
+    public AvatarResult getAvatarWithMediaType(UUID userId) {
         Path avatarDir = Paths.get(uploadDir, "avatars", userId.toString());
         try (var files = Files.list(avatarDir)) {
             Path avatarFile = files.findFirst()
@@ -306,25 +308,13 @@ public class UserService {
             if (!resource.exists() || !resource.isReadable()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Avatar not found");
             }
-            return resource;
+            String mediaType;
+            try { mediaType = Files.probeContentType(avatarFile); } catch (IOException e) { mediaType = null; }
+            return new AvatarResult(resource, mediaType != null ? mediaType : "application/octet-stream");
         } catch (ResponseStatusException e) {
             throw e;
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Avatar not found");
-        }
-    }
-
-    public String resolveAvatarMediaType(UUID userId) {
-        Path avatarDir = Paths.get(uploadDir, "avatars", userId.toString());
-        try (var files = Files.list(avatarDir)) {
-            return files.findFirst()
-                    .map(p -> {
-                        try { return Files.probeContentType(p); } catch (IOException e) { return null; }
-                    })
-                    .filter(Objects::nonNull)
-                    .orElse("application/octet-stream");
-        } catch (IOException e) {
-            return "application/octet-stream";
         }
     }
 

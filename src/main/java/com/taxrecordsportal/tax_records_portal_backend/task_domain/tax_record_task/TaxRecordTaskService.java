@@ -303,7 +303,7 @@ public class TaxRecordTaskService {
                 .toList();
     }
 
-    /** Overdue tasks for the current accountant (OPEN/SUBMITTED/REJECTED past deadline). */
+    /** Overdue tasks for the current accountant (OPEN/REJECTED past deadline). */
     @Transactional(readOnly = true)
     public List<TaxRecordTaskOverdueItemResponse> getMyOverdueTasks() {
         User currentUser = getCurrentUser();
@@ -311,7 +311,7 @@ public class TaxRecordTaskService {
 
         List<TaxRecordTask> tasks = taxRecordTaskRepository.findOverdueByUserId(
                 currentUser.getId(),
-                List.of(TaxRecordTaskStatus.OPEN, TaxRecordTaskStatus.SUBMITTED, TaxRecordTaskStatus.REJECTED),
+                List.of(TaxRecordTaskStatus.OPEN, TaxRecordTaskStatus.REJECTED),
                 now);
 
         if (tasks.isEmpty()) return List.of();

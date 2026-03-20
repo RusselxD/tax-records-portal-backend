@@ -41,14 +41,7 @@ application:
       secret-key: ${SECRET_KEY}
       access-token-expiration: 900000      # 15 minutes in milliseconds
       refresh-token-expiration: 604800000  # 7 days in milliseconds
-      activation-token-expiration: 86400000  # 24 hours in milliseconds
-
-debug: true
-
-logging:
-  level:
-    org.springframework.web: DEBUG
-    org.springframework.web.servlet.DispatcherServlet: DEBUG
+      activation-token-expiration: 172800000  # 48 hours in milliseconds
 
 server:
   port: 8080

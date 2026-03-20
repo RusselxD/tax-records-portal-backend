@@ -30,4 +30,21 @@ public interface ClientInfoRepository extends JpaRepository<ClientInfo, UUID> {
 
     @Query(value = "SELECT onboarding_details FROM client_info WHERE client_id = :clientId", nativeQuery = true)
     String findOnboardingDetailsByClientId(UUID clientId);
+
+    @Query(value = """
+            SELECT (ci.scope_of_engagement -> 'engagementLetter') IS NOT NULL
+              AND (ci.scope_of_engagement -> 'engagementLetter') != 'null'::jsonb
+            FROM client_info ci
+            JOIN clients c ON c.id = ci.client_id
+            WHERE c.user_id = :userId
+            """, nativeQuery = true)
+    Optional<Boolean> existsEngagementLetterByUserId(UUID userId);
+
+    @Query(value = """
+            SELECT ci.scope_of_engagement -> 'engagementLetter' ->> 'id'
+            FROM client_info ci
+            JOIN clients c ON c.id = ci.client_id
+            WHERE c.user_id = :userId
+            """, nativeQuery = true)
+    Optional<String> findEngagementLetterFileIdByUserId(UUID userId);
 }

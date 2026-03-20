@@ -100,7 +100,7 @@ public class FileService {
     }
 
     public void delete(UUID fileId) {
-        FileEntity fileEntity = fileRepository.findById(fileId)
+        FileEntity fileEntity = fileRepository.findWithClientById(fileId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found"));
 
         UUID clientId = fileEntity.getClient().getId();
@@ -117,11 +117,11 @@ public class FileService {
     }
 
     public Resource previewById(UUID fileId) {
-        FileEntity fileEntity = fileRepository.findById(fileId)
+        FileEntity fileEntity = fileRepository.findWithClientById(fileId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found"));
 
         UUID clientId = fileEntity.getClient().getId();
-        getAccessibleClient(clientId);
+        enforceClientAccess(fileEntity.getClient());
 
         String filename = fileEntity.getUrl().substring(fileEntity.getUrl().lastIndexOf('/') + 1);
         Path filePath = Paths.get(uploadDir, clientId.toString(), filename).normalize();
@@ -158,17 +158,22 @@ public class FileService {
     }
 
     private Client getAccessibleClient(UUID clientId) {
+        Client client = clientRepository.findWithCreatorAccountantsAndUserById(clientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+        enforceClientAccess(client);
+        return client;
+    }
+
+    private void enforceClientAccess(Client client) {
         User currentUser = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
         boolean hasViewAll = currentUser.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("client_info.view.all")
                         || a.getAuthority().equals("tax_records.view.all"));
 
-        Client client = clientRepository.findWithCreatorAccountantsAndUserById(clientId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
-
         if (!hasViewAll) {
-            boolean isCreator = client.getCreatedBy().getId().equals(currentUser.getId());
+            boolean isCreator = client.getCreatedBy() != null
+                    && client.getCreatedBy().getId().equals(currentUser.getId());
             boolean isAssignedAccountant = client.getAccountants() != null
                     && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
             boolean isClient = client.getUser() != null
@@ -178,8 +183,6 @@ public class FileService {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this client's files");
             }
         }
-
-        return client;
     }
 
     private String getExtension(String filename) {

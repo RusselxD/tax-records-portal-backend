@@ -23,7 +23,7 @@ public interface TaxRecordTaskAnalyticsRepository {
                    COUNT(*) FILTER (WHERE t.status = 'APPROVED_FOR_FILING') AS approvedForFiling,
                    COUNT(*) FILTER (WHERE t.status = 'FILED') AS filed,
                    COUNT(*) FILTER (WHERE t.status = 'COMPLETED') AS completed,
-                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND t.deadline < :now) AS overdue
+                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'REJECTED') AND t.deadline < :now) AS overdue
             FROM tax_record_tasks t
             JOIN tax_record_task_accountants ta ON ta.task_id = t.id
             WHERE ta.user_id = :userId
@@ -56,9 +56,9 @@ public interface TaxRecordTaskAnalyticsRepository {
                    COUNT(*) FILTER (WHERE status = 'FILED') AS filed,
                    COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed,
                    COUNT(*) FILTER (WHERE status = 'REJECTED') AS rejected,
-                   COUNT(*) FILTER (WHERE status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND deadline < :now) AS overdue,
-                   COUNT(*) FILTER (WHERE status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND deadline >= :todayStart AND deadline < :tomorrowStart) AS dueToday,
-                   COUNT(*) FILTER (WHERE status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND deadline >= :todayStart AND deadline < :weekEnd) AS dueThisWeek,
+                   COUNT(*) FILTER (WHERE status IN ('OPEN', 'REJECTED') AND deadline < :now) AS overdue,
+                   COUNT(*) FILTER (WHERE status IN ('OPEN', 'REJECTED') AND deadline >= :todayStart AND deadline < :tomorrowStart) AS dueToday,
+                   COUNT(*) FILTER (WHERE status IN ('OPEN', 'REJECTED') AND deadline >= :todayStart AND deadline < :weekEnd) AS dueThisWeek,
                    COUNT(*) FILTER (WHERE created_at >= :monthStart) AS createdThisMonth
             FROM tax_record_tasks
             """)
@@ -104,7 +104,7 @@ public interface TaxRecordTaskAnalyticsRepository {
             SELECT t.client_id AS clientId,
                    COUNT(*) AS totalTasks,
                    COUNT(*) FILTER (WHERE t.status <> 'COMPLETED') AS pendingTasks,
-                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND t.deadline < :now) AS overdueTasks,
+                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'REJECTED') AND t.deadline < :now) AS overdueTasks,
                    MIN(t.deadline) FILTER (WHERE t.status <> 'COMPLETED') AS nearestDeadline
             FROM tax_record_tasks t
             WHERE t.client_id IN (:clientIds)
@@ -118,7 +118,7 @@ public interface TaxRecordTaskAnalyticsRepository {
             SELECT t.client_id AS clientId,
                    COUNT(*) AS totalTasks,
                    COUNT(*) FILTER (WHERE t.status <> 'COMPLETED') AS pendingTasks,
-                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'SUBMITTED', 'REJECTED') AND t.deadline < :now) AS overdueTasks,
+                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'REJECTED') AND t.deadline < :now) AS overdueTasks,
                    MIN(t.deadline) FILTER (WHERE t.status <> 'COMPLETED') AS nearestDeadline
             FROM tax_record_tasks t
             JOIN tax_record_task_accountants ta ON ta.task_id = t.id

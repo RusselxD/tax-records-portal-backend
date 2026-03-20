@@ -3,6 +3,7 @@ package com.taxrecordsportal.tax_records_portal_backend.analytics_domain;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.dto.accountant.*;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.dto.system.*;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.*;
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemCombinedLogStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Client;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientRepository;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.mapper.ClientMapper;
@@ -172,21 +173,22 @@ public class AnalyticsService {
         Instant weekEnd = DateUtil.toStartOfDay(todayPH.plusDays(7));
         Instant monthStart = DateUtil.toStartOfDay(todayPH.withDayOfMonth(1));
 
+        // 4 queries instead of 7: consolidated log stats via CTE
         SystemClientStatsProjection clientStats = clientRepository.findSystemClientStats();
-        SystemTaskStatsProjection taskStats = taskRepository.findSystemTaskStats(now, todayStart, tomorrowStart, weekEnd, monthStart);
-        SystemLogStatsProjection logStats = logRepository.findSystemLogStats(monthStart);
-        SystemOnTimeStatsProjection onTimeStats = logRepository.findSystemOnTimeAndAvgStats();
-        QualityStatsProjection qualityStats = logRepository.findSystemQualityStats();
-        SystemProfileStatsProjection profileStats = clientInfoTaskRepository.findSystemProfileStats();
         long clientsActivatedThisMonth = userRepository.countByRoleKeyAndCreatedAtSince(RoleKey.CLIENT, monthStart);
+        SystemTaskStatsProjection taskStats = taskRepository.findSystemTaskStats(now, todayStart, tomorrowStart, weekEnd, monthStart);
+        SystemProfileStatsProjection profileStats = clientInfoTaskRepository.findSystemProfileStats();
 
-        long totalCompleted = onTimeStats.getTotalCompleted();
-        double onTimeRate = totalCompleted > 0 ? (double) onTimeStats.getCompletedOnTime() / totalCompleted : 0.0;
+        // single CTE query replaces 3 separate log queries
+        SystemCombinedLogStatsProjection logStats = logRepository.findSystemCombinedLogStats(monthStart);
 
-        long totalSubmitted = qualityStats.getTotalSubmitted();
-        double firstAttemptRate = totalSubmitted > 0 ? (double) qualityStats.getFirstAttemptApproved() / totalSubmitted : 0.0;
-        double avgRejectionCycles = qualityStats.getAvgRejectionCycles() != null ? qualityStats.getAvgRejectionCycles() : 0.0;
-        double avgCompletionDays = onTimeStats.getAvgCompletionDays() != null ? onTimeStats.getAvgCompletionDays() : 0.0;
+        long totalCompleted = logStats.getTotalCompleted();
+        double onTimeRate = totalCompleted > 0 ? (double) logStats.getCompletedOnTime() / totalCompleted : 0.0;
+
+        long totalSubmitted = logStats.getTotalSubmitted();
+        double firstAttemptRate = totalSubmitted > 0 ? (double) logStats.getFirstAttemptApproved() / totalSubmitted : 0.0;
+        double avgRejectionCycles = logStats.getAvgRejectionCycles() != null ? logStats.getAvgRejectionCycles() : 0.0;
+        double avgCompletionDays = logStats.getAvgCompletionDays() != null ? logStats.getAvgCompletionDays() : 0.0;
 
         return new SystemAnalyticsResponse(
                 // Card 1
@@ -244,6 +246,7 @@ public class AnalyticsService {
 
     public List<AccountantWorkloadItemResponse> getAccountantWorkload() {
         List<Object[]> rows = taskRepository.findTopAccountantWorkload();
+        // only 5 users max — lightweight second query is negligible
         List<UUID> userIds = rows.stream()
                 .map(r -> UUID.fromString(r[0].toString()))
                 .toList();

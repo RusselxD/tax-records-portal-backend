@@ -32,12 +32,16 @@ public class TaxTaskCategorySeeder implements CommandLineRunner {
                 "Adhoc & Consultation"
         );
 
+        List<TaxTaskCategory> toSave = new java.util.ArrayList<>();
         for (String name : categories) {
             if (!taxTaskCategoryRepository.existsByName(name)) {
                 TaxTaskCategory category = new TaxTaskCategory();
                 category.setName(name);
-                taxTaskCategoryRepository.save(category);
+                toSave.add(category);
             }
+        }
+        if (!toSave.isEmpty()) {
+            taxTaskCategoryRepository.saveAll(toSave);
         }
     }
 }

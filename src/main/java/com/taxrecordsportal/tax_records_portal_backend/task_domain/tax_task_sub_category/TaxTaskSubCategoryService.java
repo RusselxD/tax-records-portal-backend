@@ -6,6 +6,7 @@ import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_sub_
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class TaxTaskSubCategoryService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sub category not found"));
     }
 
+    @Transactional(readOnly = true)
     public List<TaxTaskSubCategoryResponse> getByCategory(Integer categoryId) {
         return taxTaskSubCategoryRepository.findByCategoryId(categoryId)
                 .stream()

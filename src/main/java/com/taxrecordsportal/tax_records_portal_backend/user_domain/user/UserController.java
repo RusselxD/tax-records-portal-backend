@@ -96,10 +96,9 @@ public class UserController {
 
     @GetMapping("/{userId}/avatar")
     public ResponseEntity<Resource> getAvatar(@PathVariable UUID userId) {
-        Resource resource = userService.getAvatarResource(userId);
-        String contentType = userService.resolveAvatarMediaType(userId);
+        UserService.AvatarResult avatar = userService.getAvatarWithMediaType(userId);
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
-                .body(resource);
+                .contentType(MediaType.parseMediaType(avatar.mediaType()))
+                .body(avatar.resource());
     }
 }

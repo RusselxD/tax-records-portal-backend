@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -20,7 +21,11 @@ import static jakarta.persistence.FetchType.LAZY;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "clients")
+@Table(name = "clients", indexes = {
+        @Index(name = "idx_clients_status", columnList = "status"),
+        @Index(name = "idx_clients_created_by", columnList = "created_by"),
+        @Index(name = "idx_clients_user_id", columnList = "user_id")
+})
 public class Client {
 
     @Id
@@ -54,7 +59,12 @@ public class Client {
     @JoinTable(
             name = "client_accountants",
             joinColumns = @JoinColumn(name = "client_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id")
+            inverseJoinColumns = @JoinColumn(name = "user_id"),
+            indexes = {
+                    @Index(name = "idx_client_accountants_client_id", columnList = "client_id"),
+                    @Index(name = "idx_client_accountants_user_id", columnList = "user_id")
+            }
     )
+    @BatchSize(size = 20)
     private Set<User> accountants;
 }

@@ -6,6 +6,7 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileReviewListItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.dto.response.ClientInfoLogItemResponse;
+import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -81,7 +82,13 @@ public class ClientInfoTaskController {
 
     @GetMapping("/reviews")
     @PreAuthorize("hasAuthority('client_info.review')")
-    public ResponseEntity<List<ProfileReviewListItemResponse>> getProfileReviews() {
-        return ResponseEntity.ok(clientInfoTaskService.getProfileReviews());
+    public ResponseEntity<PageResponse<ProfileReviewListItemResponse>> getProfileReviews(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) ClientInfoTaskType type,
+            @RequestParam(required = false) ClientInfoTaskStatus status
+    ) {
+        return ResponseEntity.ok(clientInfoTaskService.getProfileReviews(page, size, search, type, status));
     }
 }

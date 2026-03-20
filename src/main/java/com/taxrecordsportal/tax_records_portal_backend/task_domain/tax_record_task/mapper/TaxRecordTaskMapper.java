@@ -21,7 +21,7 @@ import java.util.Set;
 public class TaxRecordTaskMapper {
 
     private static final Set<TaxRecordTaskStatus> OVERDUE_EXCLUDED = Set.of(
-            TaxRecordTaskStatus.APPROVED_FOR_FILING, TaxRecordTaskStatus.FILED, TaxRecordTaskStatus.COMPLETED);
+            TaxRecordTaskStatus.SUBMITTED, TaxRecordTaskStatus.APPROVED_FOR_FILING, TaxRecordTaskStatus.FILED, TaxRecordTaskStatus.COMPLETED);
 
     public TaxRecordTaskListItemResponse toListItemResponse(TaxRecordTask task) {
         ClientInformation ci = extractClientInfo(task);

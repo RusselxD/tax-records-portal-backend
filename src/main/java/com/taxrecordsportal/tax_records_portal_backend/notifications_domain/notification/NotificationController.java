@@ -21,22 +21,36 @@ public class NotificationController {
     @PreAuthorize("hasAuthority('notification.receive')")
     public ResponseEntity<ScrollResponse<NotificationListItemResponse>> getMyNotifications(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "15") int size
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) Boolean unread
     ) {
-        return ResponseEntity.ok(notificationService.getMyNotifications(page, size));
+        return ResponseEntity.ok(notificationService.getMyNotifications(page, size, unread));
     }
 
-    @GetMapping("unread-count")
+    @GetMapping("/unread-count")
     @PreAuthorize("hasAuthority('notification.receive')")
     public ResponseEntity<UnreadNotificationsCountResponse> getUnreadNotificationsCount() {
         return ResponseEntity.ok(notificationService.getUnreadCount());
     }
 
-
     @PatchMapping("/{notificationId}/read")
     @PreAuthorize("hasAuthority('notification.receive')")
     public ResponseEntity<Void> markAsRead(@PathVariable UUID notificationId) {
         notificationService.markAsRead(notificationId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/mark-all-read")
+    @PreAuthorize("hasAuthority('notification.receive')")
+    public ResponseEntity<Void> markAllAsRead() {
+        notificationService.markAllAsRead();
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{notificationId}")
+    @PreAuthorize("hasAuthority('notification.receive')")
+    public ResponseEntity<Void> deleteNotification(@PathVariable UUID notificationId) {
+        notificationService.delete(notificationId);
         return ResponseEntity.noContent().build();
     }
 }

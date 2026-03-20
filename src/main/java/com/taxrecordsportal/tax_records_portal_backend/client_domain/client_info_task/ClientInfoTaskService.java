@@ -30,7 +30,13 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.resp
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.mapper.UserMapper;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -283,12 +289,18 @@ public class ClientInfoTaskService {
         verifyClientAccess(client.getId(), currentUser);
         String comment = request != null ? request.comment() : null;
 
+        // Compute changed section keys before overwrite
+        ClientInfo info = client.getClientInfo();
+        List<String> changedKeys = buildChangedSections(info, task).stream()
+                .map(ChangedSection::sectionKey)
+                .toList();
+        task.setChangedSectionKeys(changedKeys);
+
         // Approve the task
         task.setStatus(ClientInfoTaskStatus.APPROVED);
         clientInfoTaskRepository.save(task);
 
         // Overwrite live ClientInfo with the approved snapshot
-        ClientInfo info = client.getClientInfo();
         overwriteClientInfo(info, task);
 
         clientRepository.save(client);
@@ -329,7 +341,9 @@ public class ClientInfoTaskService {
                 .map(ClientInfoTaskLog::getComment)
                 .orElse(null);
 
-        List<ChangedSection> changes = buildChangedSections(info, task);
+        List<ChangedSection> changes = task.getStatus() == ClientInfoTaskStatus.APPROVED
+                ? buildApprovedSections(task)
+                : buildChangedSections(info, task);
 
         return new ProfileUpdateReviewResponse(task.getClient().getId(), clientName, task.getStatus(), submitterDto, task.getSubmittedAt(), comment, changes);
     }
@@ -356,6 +370,30 @@ public class ClientInfoTaskService {
             }
         }
         return changes;
+    }
+
+    private List<ChangedSection> buildApprovedSections(ClientInfoTask task) {
+        List<String> keys = task.getChangedSectionKeys();
+        if (keys == null || keys.isEmpty()) return List.of();
+
+        Map<String, Object> sectionMap = Map.of(
+                "mainDetails", task.getMainDetails() != null ? task.getMainDetails() : "",
+                "clientInformation", task.getClientInformation() != null ? task.getClientInformation() : "",
+                "corporateOfficerInformation", task.getCorporateOfficerInformation() != null ? task.getCorporateOfficerInformation() : "",
+                "accessCredentials", task.getAccessCredentials() != null ? task.getAccessCredentials() : "",
+                "scopeOfEngagement", task.getScopeOfEngagement() != null ? task.getScopeOfEngagement() : "",
+                "professionalFees", task.getProfessionalFees() != null ? task.getProfessionalFees() : "",
+                "onboardingDetails", task.getOnboardingDetails() != null ? task.getOnboardingDetails() : ""
+        );
+
+        List<ChangedSection> sections = new java.util.ArrayList<>();
+        for (String key : keys) {
+            Object value = sectionMap.get(key);
+            if (value != null && !value.equals("")) {
+                sections.add(new ChangedSection(key, null, objectMapper.valueToTree(value)));
+            }
+        }
+        return sections;
     }
 
     @Transactional(readOnly = true)
@@ -396,16 +434,19 @@ public class ClientInfoTaskService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProfileReviewListItemResponse> getProfileReviews() {
+    public PageResponse<ProfileReviewListItemResponse> getProfileReviews(
+            int page, int size, String search, ClientInfoTaskType type, ClientInfoTaskStatus status) {
         User currentUser = getCurrentUser();
         boolean hasViewAll = currentUser.getAuthorities().stream()
                 .anyMatch(a -> Objects.equals(a.getAuthority(), "client.view.all"));
 
-        List<ClientInfoTask> tasks = hasViewAll
-                ? clientInfoTaskRepository.findAllByOrderBySubmittedAtDesc()
-                : clientInfoTaskRepository.findByClient_Accountants_IdOrderBySubmittedAtDesc(currentUser.getId());
+        UUID scopedAccountantId = hasViewAll ? null : currentUser.getId();
 
-        return tasks.stream()
+        Specification<ClientInfoTask> spec = ClientInfoTaskSpecification.withFilters(
+                search, type, status, scopedAccountantId);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "submittedAt"));
+        Page<ProfileReviewListItemResponse> result = clientInfoTaskRepository.findAll(spec, pageable)
                 .map(task -> new ProfileReviewListItemResponse(
                         task.getId(),
                         task.getClient().getId(),
@@ -414,8 +455,9 @@ public class ClientInfoTaskService {
                         task.getStatus(),
                         UserDisplayUtil.formatDisplayName(task.getSubmittedBy()),
                         task.getSubmittedAt()
-                ))
-                .toList();
+                ));
+
+        return PageResponse.from(result);
     }
 
     @Transactional(readOnly = true)

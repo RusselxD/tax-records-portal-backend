@@ -18,7 +18,11 @@ import static jakarta.persistence.GenerationType.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "tax_record_task_logs")
+@Table(name = "tax_record_task_logs", indexes = {
+        @Index(name = "idx_trt_logs_task_id", columnList = "task_id"),
+        @Index(name = "idx_trt_logs_performed_by_created", columnList = "performed_by, created_at"),
+        @Index(name = "idx_trt_logs_action_created", columnList = "action, created_at")
+})
 public class TaxRecordTaskLog {
 
     @Id
