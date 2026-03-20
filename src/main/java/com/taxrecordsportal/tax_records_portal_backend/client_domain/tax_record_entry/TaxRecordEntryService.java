@@ -2,8 +2,11 @@ package com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record
 
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Client;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientRepository;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.dto.response.DrillDownItemResponse;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.dto.response.DrillDownResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.dto.response.TaxRecordEntryResponse;
 import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileEntity;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.Period;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.TaxRecordTask;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.WorkingFileItem;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
@@ -47,6 +50,61 @@ public class TaxRecordEntryService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public DrillDownResponse drillDown(UUID clientId, Integer categoryId, Integer subCategoryId,
+                                       Integer taskNameId, Integer year, Period period) {
+        // Level 6: all params provided → return the record
+        if (categoryId != null && subCategoryId != null && taskNameId != null && year != null && period != null) {
+            TaxRecordEntry entry = taxRecordEntryRepository.findRecordWithFiles(
+                    clientId, categoryId, subCategoryId, taskNameId, year, period
+            ).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tax record entry not found"));
+            return DrillDownResponse.ofRecord(toResponse(entry));
+        }
+
+        // Level 5: year provided → return periods
+        if (taskNameId != null && year != null) {
+            List<DrillDownItemResponse> items = taxRecordEntryRepository
+                    .drillDownPeriods(clientId, taskNameId, year).stream()
+                    .map(p -> new DrillDownItemResponse(p.getId(), p.getLabel(), p.getCount()))
+                    .toList();
+            return DrillDownResponse.ofItems("period", items);
+        }
+
+        // Level 4: taskNameId provided → return years
+        if (taskNameId != null) {
+            List<DrillDownItemResponse> items = taxRecordEntryRepository
+                    .drillDownYears(clientId, taskNameId).stream()
+                    .map(p -> new DrillDownItemResponse(p.getId(), p.getLabel(), p.getCount()))
+                    .toList();
+            return DrillDownResponse.ofItems("year", items);
+        }
+
+        // Level 3: subCategoryId provided → return task names
+        if (subCategoryId != null) {
+            List<DrillDownItemResponse> items = taxRecordEntryRepository
+                    .drillDownTaskNames(clientId, subCategoryId).stream()
+                    .map(p -> new DrillDownItemResponse(p.getId(), p.getLabel(), p.getCount()))
+                    .toList();
+            return DrillDownResponse.ofItems("taskName", items);
+        }
+
+        // Level 2: categoryId provided → return sub-categories
+        if (categoryId != null) {
+            List<DrillDownItemResponse> items = taxRecordEntryRepository
+                    .drillDownSubCategories(clientId, categoryId).stream()
+                    .map(p -> new DrillDownItemResponse(p.getId(), p.getLabel(), p.getCount()))
+                    .toList();
+            return DrillDownResponse.ofItems("subCategory", items);
+        }
+
+        // Level 1: no params → return categories
+        List<DrillDownItemResponse> items = taxRecordEntryRepository
+                .drillDownCategories(clientId).stream()
+                .map(p -> new DrillDownItemResponse(p.getId(), p.getLabel(), p.getCount()))
+                .toList();
+        return DrillDownResponse.ofItems("category", items);
     }
 
     @Transactional
@@ -118,6 +176,12 @@ public class TaxRecordEntryService {
         FileEntity output = entry.getOutputFile();
         FileEntity proof = entry.getProofOfFilingFile();
 
+        List<TaxRecordEntryResponse.WorkingFileItem> workingFiles = entry.getWorkingFiles() != null
+                ? entry.getWorkingFiles().stream()
+                    .map(w -> new TaxRecordEntryResponse.WorkingFileItem(w.type(), w.fileId(), w.fileName(), w.url(), w.label()))
+                    .toList()
+                : List.of();
+
         return new TaxRecordEntryResponse(
                 entry.getId(),
                 entry.getCategory().getName(),
@@ -125,11 +189,9 @@ public class TaxRecordEntryService {
                 entry.getTaskName().getName(),
                 entry.getYear(),
                 entry.getPeriod(),
-                entry.getWorkingFiles(),
-                output != null ? output.getId() : null,
-                output != null ? output.getName() : null,
-                proof != null ? proof.getId() : null,
-                proof != null ? proof.getName() : null
+                workingFiles,
+                output != null ? new TaxRecordEntryResponse.FileRef(output.getId(), output.getName()) : null,
+                proof != null ? new TaxRecordEntryResponse.FileRef(proof.getId(), proof.getName()) : null
         );
     }
 }
