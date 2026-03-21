@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -80,4 +81,8 @@ public interface TaxRecordEntryRepository extends JpaRepository<TaxRecordEntry, 
                                                   @Param("taskNameId") Integer taskNameId,
                                                   @Param("year") int year,
                                                   @Param("period") Period period);
+
+    @EntityGraph(attributePaths = {"category", "subCategory", "taskName"})
+    @Query("SELECT e FROM TaxRecordEntry e WHERE e.client.id = :clientId AND e.createdAt >= :since ORDER BY e.createdAt DESC LIMIT 5")
+    List<TaxRecordEntry> findRecentByClientId(@Param("clientId") UUID clientId, @Param("since") Instant since);
 }

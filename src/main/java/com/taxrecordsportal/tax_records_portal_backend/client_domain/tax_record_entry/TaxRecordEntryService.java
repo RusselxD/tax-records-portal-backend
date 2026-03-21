@@ -4,6 +4,7 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Clie
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientRepository;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.dto.response.DrillDownItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.dto.response.DrillDownResponse;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.dto.response.RecentTaxRecordEntryResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.dto.response.TaxRecordEntryResponse;
 import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileEntity;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.Period;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -105,6 +108,31 @@ public class TaxRecordEntryService {
                 .map(p -> new DrillDownItemResponse(p.getId(), p.getLabel(), p.getCount()))
                 .toList();
         return DrillDownResponse.ofItems("category", items);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RecentTaxRecordEntryResponse> getRecentForClient(UUID clientId, String range) {
+        Instant since = switch (range) {
+            case "30d" -> Instant.now().minus(30, ChronoUnit.DAYS);
+            case "3m" -> Instant.now().minus(90, ChronoUnit.DAYS);
+            default -> Instant.now().minus(7, ChronoUnit.DAYS);
+        };
+
+        return taxRecordEntryRepository.findRecentByClientId(clientId, since)
+                .stream()
+                .map(e -> new RecentTaxRecordEntryResponse(
+                        e.getId(),
+                        e.getCategory().getId(),
+                        e.getCategory().getName(),
+                        e.getSubCategory().getId(),
+                        e.getSubCategory().getName(),
+                        e.getTaskName().getId(),
+                        e.getTaskName().getName(),
+                        e.getYear(),
+                        e.getPeriod(),
+                        e.getCreatedAt()
+                ))
+                .toList();
     }
 
     @Transactional

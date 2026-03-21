@@ -11,9 +11,11 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -68,4 +70,8 @@ public class TaxRecordEntry {
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "proof_of_filing_file_id")
     private FileEntity proofOfFilingFile;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 }
