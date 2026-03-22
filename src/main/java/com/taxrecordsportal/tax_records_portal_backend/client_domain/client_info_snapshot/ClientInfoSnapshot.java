@@ -5,8 +5,10 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Clie
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.dto.*;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -19,9 +21,11 @@ import static jakarta.persistence.GenerationType.UUID;
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "client_info_snapshots", indexes = {
         @Index(name = "idx_snapshots_client_id", columnList = "client_id")
 })
@@ -29,6 +33,7 @@ public class ClientInfoSnapshot {
 
     @Id
     @GeneratedValue(strategy = UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @ManyToOne(fetch = LAZY)

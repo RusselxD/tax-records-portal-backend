@@ -4,8 +4,10 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.ClientInfo;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -18,9 +20,11 @@ import static jakarta.persistence.GenerationType.UUID;
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "clients", indexes = {
         @Index(name = "idx_clients_status", columnList = "status"),
         @Index(name = "idx_clients_created_by", columnList = "created_by"),
@@ -30,7 +34,11 @@ public class Client {
 
     @Id
     @GeneratedValue(strategy = UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
+
+    @Version
+    private Long version;
 
     @OneToOne(fetch = LAZY)
     @JoinColumn(name = "user_id")

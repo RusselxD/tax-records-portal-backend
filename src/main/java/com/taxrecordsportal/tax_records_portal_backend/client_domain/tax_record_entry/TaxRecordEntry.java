@@ -9,8 +9,10 @@ import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_name
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_sub_category.TaxTaskSubCategory;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -24,9 +26,11 @@ import static jakarta.persistence.FetchType.LAZY;
 import static jakarta.persistence.GenerationType.UUID;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "tax_record_entries", indexes = {
         @Index(name = "idx_tre_client_id", columnList = "client_id")
 })
@@ -34,6 +38,7 @@ public class TaxRecordEntry {
 
     @Id
     @GeneratedValue(strategy = UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @ManyToOne(fetch = LAZY)

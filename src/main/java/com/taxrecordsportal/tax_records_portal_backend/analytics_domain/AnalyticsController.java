@@ -42,6 +42,12 @@ public class AnalyticsController {
         return ResponseEntity.ok(analyticsService.getTaskApprovalRate(range));
     }
 
+    @GetMapping("/accountant-overview")
+    @PreAuthorize("hasAuthority('user.view.all')")
+    public ResponseEntity<List<AccountantOverviewItemResponse>> getAccountantOverview() {
+        return ResponseEntity.ok(analyticsService.getAccountantOverview());
+    }
+
     @GetMapping("/accountant-workload")
     @PreAuthorize("hasAuthority('analytics.system.view')")
     public ResponseEntity<List<AccountantWorkloadItemResponse>> getAccountantWorkload() {

@@ -2,11 +2,14 @@ package com.taxrecordsportal.tax_records_portal_backend.client_domain.client_inf
 
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Client;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.dto.*;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse.SectionDiff;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -20,9 +23,11 @@ import static jakarta.persistence.FetchType.LAZY;
 import static jakarta.persistence.GenerationType.UUID;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "client_info_tasks", indexes = {
         @Index(name = "idx_cit_client_type_status", columnList = "client_id, type, status"),
         @Index(name = "idx_cit_submitted_at", columnList = "submitted_at"),
@@ -32,7 +37,11 @@ public class ClientInfoTask {
 
     @Id
     @GeneratedValue(strategy = UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
+
+    @Version
+    private Long version;
 
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "client_id", nullable = false)
@@ -78,6 +87,10 @@ public class ClientInfoTask {
     @Column(name = "changed_section_keys", columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
     private List<String> changedSectionKeys;
+
+    @Column(name = "approved_diff", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private List<SectionDiff> approvedDiff;
 
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "submitted_by")

@@ -3,8 +3,10 @@ package com.taxrecordsportal.tax_records_portal_backend.notifications_domain.not
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
@@ -14,9 +16,11 @@ import static jakarta.persistence.GenerationType.UUID;
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "notifications", indexes = {
         @Index(name = "idx_notif_recipient_read_created", columnList = "recipient_id, is_read, created_at DESC")
 })
@@ -24,6 +28,7 @@ public class Notification {
 
     @Id
     @GeneratedValue(strategy = UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @ManyToOne(fetch = LAZY)

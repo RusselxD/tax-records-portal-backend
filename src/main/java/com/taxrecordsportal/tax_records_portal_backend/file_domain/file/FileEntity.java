@@ -4,8 +4,10 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Clie
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
@@ -14,9 +16,11 @@ import static jakarta.persistence.FetchType.LAZY;
 import static jakarta.persistence.GenerationType.UUID;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "files", indexes = {
         @Index(name = "idx_files_client_id", columnList = "client_id")
 })
@@ -24,6 +28,7 @@ public class FileEntity {
 
     @Id
     @GeneratedValue(strategy = UUID)
+    @EqualsAndHashCode.Include
     private java.util.UUID id;
 
     @Column(name = "name", nullable = false)

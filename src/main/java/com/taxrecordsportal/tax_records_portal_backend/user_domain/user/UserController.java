@@ -5,6 +5,8 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.requ
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.MePatchRequest;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.ResendActivationRequest;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.UserCreateRequest;
+import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.UserUpdateRequest;
+import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.UserStatusUpdateRequest;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.AccountantListItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.AvatarResponse;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.ClientAccountResponse;
@@ -42,6 +44,23 @@ public class UserController {
             @Valid @RequestBody UserCreateRequest request
             ){
         return ResponseEntity.ok(userService.createEmployee(request));
+    }
+
+    @PatchMapping("/{userId}")
+    @PreAuthorize("hasAuthority('user.create')")
+    public ResponseEntity<UserListItemResponse> updateUser(
+            @PathVariable UUID userId,
+            @Valid @RequestBody UserUpdateRequest request) {
+        return ResponseEntity.ok(userService.updateUser(userId, request));
+    }
+
+    @PatchMapping("/{userId}/status")
+    @PreAuthorize("hasAuthority('user.create')")
+    public ResponseEntity<Void> changeUserStatus(
+            @PathVariable UUID userId,
+            @Valid @RequestBody UserStatusUpdateRequest request) {
+        userService.changeUserStatus(userId, request);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/client/{clientId}")

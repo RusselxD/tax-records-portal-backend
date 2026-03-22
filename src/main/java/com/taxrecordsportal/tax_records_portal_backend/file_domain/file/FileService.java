@@ -56,6 +56,9 @@ public class FileService {
         }
 
         String originalFilename = file.getOriginalFilename();
+        if (originalFilename != null) {
+            originalFilename = Paths.get(originalFilename).getFileName().toString();
+        }
         String extension = getExtension(originalFilename);
 
         if (!ALLOWED_EXTENSIONS.contains(extension.toLowerCase())) {

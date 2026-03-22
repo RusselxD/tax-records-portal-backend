@@ -23,14 +23,23 @@ public interface TaxRecordTaskAnalyticsRepository {
                    COUNT(*) FILTER (WHERE t.status = 'APPROVED_FOR_FILING') AS approvedForFiling,
                    COUNT(*) FILTER (WHERE t.status = 'FILED') AS filed,
                    COUNT(*) FILTER (WHERE t.status = 'COMPLETED') AS completed,
-                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'REJECTED') AND t.deadline < :now) AS overdue
+                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'REJECTED') AND t.deadline < :now) AS overdue,
+                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'REJECTED') AND t.deadline >= :todayStart AND t.deadline < :tomorrowStart) AS dueToday,
+                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'REJECTED') AND t.deadline >= :todayStart AND t.deadline < :weekEnd) AS dueThisWeek,
+                   COUNT(*) FILTER (WHERE t.created_at >= :monthStart) AS newTasksThisMonth,
+                   COUNT(*) FILTER (WHERE t.status <> 'COMPLETED') AS activeTaskCount,
+                   COUNT(DISTINCT t.client_id) FILTER (WHERE t.status <> 'COMPLETED') AS assignedClientCount
             FROM tax_record_tasks t
             JOIN tax_record_task_accountants ta ON ta.task_id = t.id
             WHERE ta.user_id = :userId
             """)
     TaskSummaryProjection findTaskSummaryByUserId(
             @Param("userId") UUID userId,
-            @Param("now") Instant now);
+            @Param("now") Instant now,
+            @Param("todayStart") Instant todayStart,
+            @Param("tomorrowStart") Instant tomorrowStart,
+            @Param("weekEnd") Instant weekEnd,
+            @Param("monthStart") Instant monthStart);
 
     @Query(nativeQuery = true, value = """
             SELECT c.name AS category,
@@ -97,6 +106,20 @@ public interface TaxRecordTaskAnalyticsRepository {
             LIMIT 5
             """)
     List<Object[]> findTopAccountantWorkload();
+
+    @Query(nativeQuery = true, value = """
+            SELECT ta.user_id AS userId,
+                   COUNT(*) FILTER (WHERE t.status <> 'COMPLETED') AS activeTasks,
+                   COUNT(DISTINCT t.client_id) FILTER (WHERE t.status <> 'COMPLETED') AS assignedClients,
+                   COUNT(*) FILTER (WHERE t.status IN ('OPEN', 'REJECTED') AND t.deadline < :now) AS overdueTasks
+            FROM tax_record_task_accountants ta
+            JOIN tax_record_tasks t ON t.id = ta.task_id
+            WHERE ta.user_id IN (:userIds)
+            GROUP BY ta.user_id
+            """)
+    List<Object[]> findAccountantOverviewMetrics(
+            @Param("userIds") List<UUID> userIds,
+            @Param("now") Instant now);
 
     // --- Batch metrics ---
 

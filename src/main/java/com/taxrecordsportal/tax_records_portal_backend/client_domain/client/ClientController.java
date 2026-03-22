@@ -13,6 +13,7 @@ import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileServ
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -98,7 +99,7 @@ public class ClientController {
         String contentType = fileService.resolveMediaType(fileEntity.getName());
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileEntity.getName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.builder("inline").filename(fileEntity.getName()).build().toString())
                 .body(resource);
     }
 

@@ -12,8 +12,9 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ArchiveSnapshotResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ClientInfoTaskResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileReviewListItemResponse;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.diff.ProfileDiffService;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse.ChangedSection;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse.SectionDiff;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse.Submitter;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.dto.response.ClientInfoLogItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.ClientInfoTaskLog;
@@ -28,8 +29,6 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserRepo
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserStatus;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.AccountantListItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.mapper.UserMapper;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -66,7 +65,7 @@ public class ClientInfoTaskService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final NotificationService notificationService;
-    private final ObjectMapper objectMapper;
+    private final ProfileDiffService profileDiffService;
 
     @Transactional(readOnly = true)
     public ClientInfoTaskResponse getTask(UUID taskId) {
@@ -289,12 +288,11 @@ public class ClientInfoTaskService {
         verifyClientAccess(client.getId(), currentUser);
         String comment = request != null ? request.comment() : null;
 
-        // Compute changed section keys before overwrite
+        // Compute and persist full diff before overwrite
         ClientInfo info = client.getClientInfo();
-        List<String> changedKeys = buildChangedSections(info, task).stream()
-                .map(ChangedSection::sectionKey)
-                .toList();
-        task.setChangedSectionKeys(changedKeys);
+        List<SectionDiff> diff = profileDiffService.computeDiff(info, task);
+        task.setApprovedDiff(diff);
+        task.setChangedSectionKeys(diff.stream().map(SectionDiff::sectionKey).toList());
 
         // Approve the task
         task.setStatus(ClientInfoTaskStatus.APPROVED);
@@ -341,59 +339,11 @@ public class ClientInfoTaskService {
                 .map(ClientInfoTaskLog::getComment)
                 .orElse(null);
 
-        List<ChangedSection> changes = task.getStatus() == ClientInfoTaskStatus.APPROVED
-                ? buildApprovedSections(task)
-                : buildChangedSections(info, task);
+        List<SectionDiff> sections = task.getStatus() == ClientInfoTaskStatus.APPROVED
+                ? task.getApprovedDiff() != null ? task.getApprovedDiff() : List.of()
+                : profileDiffService.computeDiff(info, task);
 
-        return new ProfileUpdateReviewResponse(task.getClient().getId(), clientName, task.getStatus(), submitterDto, task.getSubmittedAt(), comment, changes);
-    }
-
-    private List<ChangedSection> buildChangedSections(ClientInfo info, ClientInfoTask task) {
-        record SectionPair(String key, Object current, Object submitted) {}
-
-        List<SectionPair> pairs = List.of(
-                new SectionPair("mainDetails", info.getMainDetails(), task.getMainDetails()),
-                new SectionPair("clientInformation", info.getClientInformation(), task.getClientInformation()),
-                new SectionPair("corporateOfficerInformation", info.getCorporateOfficerInformation(), task.getCorporateOfficerInformation()),
-                new SectionPair("accessCredentials", info.getAccessCredentials(), task.getAccessCredentials()),
-                new SectionPair("scopeOfEngagement", info.getScopeOfEngagement(), task.getScopeOfEngagement()),
-                new SectionPair("professionalFees", info.getProfessionalFees(), task.getProfessionalFees()),
-                new SectionPair("onboardingDetails", info.getOnboardingDetails(), task.getOnboardingDetails())
-        );
-
-        List<ChangedSection> changes = new java.util.ArrayList<>();
-        for (SectionPair pair : pairs) {
-            JsonNode currentNode = objectMapper.valueToTree(pair.current());
-            JsonNode submittedNode = objectMapper.valueToTree(pair.submitted());
-            if (!Objects.equals(currentNode, submittedNode)) {
-                changes.add(new ChangedSection(pair.key(), currentNode, submittedNode));
-            }
-        }
-        return changes;
-    }
-
-    private List<ChangedSection> buildApprovedSections(ClientInfoTask task) {
-        List<String> keys = task.getChangedSectionKeys();
-        if (keys == null || keys.isEmpty()) return List.of();
-
-        Map<String, Object> sectionMap = Map.of(
-                "mainDetails", task.getMainDetails() != null ? task.getMainDetails() : "",
-                "clientInformation", task.getClientInformation() != null ? task.getClientInformation() : "",
-                "corporateOfficerInformation", task.getCorporateOfficerInformation() != null ? task.getCorporateOfficerInformation() : "",
-                "accessCredentials", task.getAccessCredentials() != null ? task.getAccessCredentials() : "",
-                "scopeOfEngagement", task.getScopeOfEngagement() != null ? task.getScopeOfEngagement() : "",
-                "professionalFees", task.getProfessionalFees() != null ? task.getProfessionalFees() : "",
-                "onboardingDetails", task.getOnboardingDetails() != null ? task.getOnboardingDetails() : ""
-        );
-
-        List<ChangedSection> sections = new java.util.ArrayList<>();
-        for (String key : keys) {
-            Object value = sectionMap.get(key);
-            if (value != null && !value.equals("")) {
-                sections.add(new ChangedSection(key, null, objectMapper.valueToTree(value)));
-            }
-        }
-        return sections;
+        return new ProfileUpdateReviewResponse(task.getClient().getId(), clientName, task.getStatus(), submitterDto, task.getSubmittedAt(), comment, sections);
     }
 
     @Transactional(readOnly = true)

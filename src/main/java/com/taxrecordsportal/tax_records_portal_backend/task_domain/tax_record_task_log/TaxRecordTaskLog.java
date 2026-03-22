@@ -4,8 +4,10 @@ import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_ta
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
@@ -15,9 +17,11 @@ import static jakarta.persistence.FetchType.LAZY;
 import static jakarta.persistence.GenerationType.UUID;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "tax_record_task_logs", indexes = {
         @Index(name = "idx_trt_logs_task_id", columnList = "task_id"),
         @Index(name = "idx_trt_logs_performed_by_created", columnList = "performed_by, created_at"),
@@ -27,6 +31,7 @@ public class TaxRecordTaskLog {
 
     @Id
     @GeneratedValue(strategy = UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @ManyToOne(fetch = LAZY)

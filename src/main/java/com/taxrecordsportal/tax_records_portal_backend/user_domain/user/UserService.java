@@ -12,6 +12,8 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.requ
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.MePatchRequest;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.ResendActivationRequest;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.UserCreateRequest;
+import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.UserUpdateRequest;
+import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.request.UserStatusUpdateRequest;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.AccountantListItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.AvatarResponse;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.ClientAccountResponse;
@@ -79,6 +81,7 @@ public class UserService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<UserListItemResponse> getAllEmployees() {
         Role clientRole = roleRepository.findByKey(RoleKey.CLIENT)
                 .orElseThrow(() -> new RuntimeException("Client role not found"));
@@ -181,6 +184,77 @@ public class UserService {
                 user.getFirstName(),
                 activationToken.getToken()
         );
+    }
+
+    @Transactional
+    public UserListItemResponse updateUser(UUID userId, UserUpdateRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+
+        if (request.firstName() != null) user.setFirstName(request.firstName());
+        if (request.lastName() != null) user.setLastName(request.lastName());
+
+        if (request.email() != null && !request.email().equals(user.getEmail())) {
+            if (userRepository.findByEmail(request.email()).isPresent()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use.");
+            }
+            user.setEmail(request.email());
+        }
+
+        if (request.roleId() != null) {
+            Role role = roleRepository.findById(request.roleId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found."));
+
+            if (user.getRole().getKey() == RoleKey.MANAGER && role.getKey() != RoleKey.MANAGER) {
+                long managerCount = userRepository.countByRoleKeyAndStatusNot(RoleKey.MANAGER, UserStatus.DEACTIVATED);
+                if (managerCount <= 1) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot change role. This is the only active manager.");
+                }
+            }
+
+            user.setRole(role);
+        }
+
+        if (request.positionId() != null) {
+            EmployeePosition position = employeePositionRepository.findById(request.positionId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Position not found."));
+            user.setPosition(position);
+        }
+
+        if (request.titles() != null) user.setTitles(request.titles());
+
+        userRepository.save(user);
+        return userMapper.mapUserToListItem(user);
+    }
+
+    @Transactional
+    public void changeUserStatus(UUID userId, UserStatusUpdateRequest request) {
+        User currentUser = getCurrentUser();
+        if (currentUser.getId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot change your own status.");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+
+        if (user.getStatus() == UserStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot change status of a pending user. Activate the account first.");
+        }
+
+        UserStatus newStatus = request.status();
+        if (newStatus != UserStatus.ACTIVE && newStatus != UserStatus.DEACTIVATED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status must be ACTIVE or DEACTIVATED.");
+        }
+
+        if (newStatus == UserStatus.DEACTIVATED && user.getRole().getKey() == RoleKey.MANAGER) {
+            long managerCount = userRepository.countByRoleKeyAndStatusNot(RoleKey.MANAGER, UserStatus.DEACTIVATED);
+            if (managerCount <= 1) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot deactivate the only active manager.");
+            }
+        }
+
+        user.setStatus(newStatus);
+        userRepository.save(user);
     }
 
     @Transactional(readOnly = true)
@@ -299,6 +373,7 @@ public class UserService {
 
     public record AvatarResult(Resource resource, String mediaType) {}
 
+    @Transactional(readOnly = true)
     public AvatarResult getAvatarWithMediaType(UUID userId) {
         Path avatarDir = Paths.get(uploadDir, "avatars", userId.toString());
         try (var files = Files.list(avatarDir)) {

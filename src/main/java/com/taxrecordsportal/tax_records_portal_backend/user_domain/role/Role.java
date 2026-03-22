@@ -4,9 +4,10 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.permission.Pe
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.BatchSize;
 
@@ -16,14 +17,17 @@ import static jakarta.persistence.GenerationType.IDENTITY;
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
-@Data
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "roles")
 public class Role {
 
     @Id
     @GeneratedValue(strategy = IDENTITY)
+    @EqualsAndHashCode.Include
     private Integer id;
 
     @Enumerated(EnumType.STRING)
@@ -40,7 +44,6 @@ public class Role {
             inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
     @BatchSize(size = 10)
-    @EqualsAndHashCode.Exclude
     @ToString.Exclude
     private Set<Permission> permissions;
 }

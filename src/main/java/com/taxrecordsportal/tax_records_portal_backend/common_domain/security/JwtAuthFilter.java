@@ -2,6 +2,7 @@ package com.taxrecordsportal.tax_records_portal_backend.common_domain.security;
 
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserRepository;
+import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserStatus;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,6 +57,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             User user = userRepository.findByIdLightweight(UUID.fromString(parsed.userId())).orElse(null);
 
             if (user != null) {
+                if (user.getStatus() == UserStatus.DEACTIVATED) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"message\":\"Your account has been deactivated.\"}");
+                    return;
+                }
+
                 // use permissions from JWT claims instead of loading from DB
                 List<GrantedAuthority> authorities = parsed.permissions().stream()
                         .map(p -> (GrantedAuthority) new SimpleGrantedAuthority(p))

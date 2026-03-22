@@ -7,11 +7,11 @@ spring:
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: validate    # validate the schema matches the entities
-    show-sql: true        # prints SQL queries in console
+      ddl-auto: none    #
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true   # makes printed SQL readable/indented
+        format_sql: false
   mail:
     host: ${MAIL_HOST}
     port: ${MAIL_PORT}

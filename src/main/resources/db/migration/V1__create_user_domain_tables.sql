@@ -1,0 +1,58 @@
+-- Permissions
+CREATE TABLE permissions (
+    id          SERIAL PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL,
+    description VARCHAR(255) NOT NULL
+);
+
+-- Roles
+CREATE TABLE roles (
+    id   SERIAL PRIMARY KEY,
+    key  VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL UNIQUE
+);
+
+-- Role-Permission join table
+CREATE TABLE role_permissions (
+    role_id       INT NOT NULL REFERENCES roles(id),
+    permission_id INT NOT NULL REFERENCES permissions(id),
+    PRIMARY KEY (role_id, permission_id)
+);
+
+-- Employee positions
+CREATE TABLE employee_positions (
+    id   SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE
+);
+
+-- Users
+CREATE TABLE users (
+    id            UUID PRIMARY KEY,
+    role_id       INT          NOT NULL REFERENCES roles(id),
+    first_name    VARCHAR(255) NOT NULL,
+    last_name     VARCHAR(255) NOT NULL,
+    email         VARCHAR(255) NOT NULL UNIQUE,
+    profile_url   VARCHAR(255),
+    password_hash VARCHAR(255),
+    position_id   INT REFERENCES employee_positions(id),
+    titles        JSONB,
+    status        VARCHAR(255) NOT NULL,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_users_email       ON users(email);
+CREATE INDEX idx_users_role_id     ON users(role_id);
+CREATE INDEX idx_users_position_id ON users(position_id);
+
+-- User tokens
+CREATE TABLE user_tokens (
+    id         SERIAL PRIMARY KEY,
+    user_id    UUID         NOT NULL REFERENCES users(id),
+    token      VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMPTZ  NOT NULL,
+    type       VARCHAR(255) NOT NULL,
+    UNIQUE (user_id, type)
+);
+
+CREATE INDEX idx_user_tokens_token   ON user_tokens(token);
+CREATE INDEX idx_user_tokens_user_id ON user_tokens(user_id);

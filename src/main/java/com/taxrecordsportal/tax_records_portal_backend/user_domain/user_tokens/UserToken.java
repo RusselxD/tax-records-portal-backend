@@ -3,8 +3,10 @@ package com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.Instant;
 
@@ -12,9 +14,11 @@ import static jakarta.persistence.GenerationType.IDENTITY;
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "user_tokens", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"user_id", "type"})
 }, indexes = {
@@ -25,6 +29,7 @@ public class UserToken {
 
     @Id
     @GeneratedValue(strategy = IDENTITY)
+    @EqualsAndHashCode.Include
     private Integer id;
 
     @ManyToOne(fetch = LAZY)

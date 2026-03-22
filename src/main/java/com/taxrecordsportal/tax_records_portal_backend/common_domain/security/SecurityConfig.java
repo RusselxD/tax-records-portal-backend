@@ -34,7 +34,9 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   AuthenticationProvider authenticationProvider, JwtAuthFilter jwtAuthFilter) throws Exception {
+                                                   AuthenticationProvider authenticationProvider,
+                                                   RateLimitFilter rateLimitFilter,
+                                                   JwtAuthFilter jwtAuthFilter) throws Exception {
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -52,7 +54,8 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authenticationProvider(authenticationProvider)
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)  // rate limit runs first
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)     // then JWT auth
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()));
 
         return http.build();

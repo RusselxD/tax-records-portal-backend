@@ -55,6 +55,10 @@ public class AuthService {
         // User was already loaded by UserDetailsServiceImpl during authenticate() — reuse from return value
         User user = (User) authentication.getPrincipal();
 
+        if (user.getStatus() == UserStatus.DEACTIVATED) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Your account has been deactivated.");
+        }
+
         return getAuthResponse(user);
     }
 
@@ -69,7 +73,15 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token has expired");
         }
 
-        User user = refreshToken.getUser();
+        // reload with full EntityGraph (role, permissions, position) for JWT claims
+        User user = userRepository.findById(refreshToken.getUser().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+
+        if (user.getStatus() == UserStatus.DEACTIVATED) {
+            userTokenRepository.delete(refreshToken);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Your account has been deactivated.");
+        }
+
         String newAccessToken = jwtService.generateAccessToken(user);
 
         // return new access token, keep the same refresh token

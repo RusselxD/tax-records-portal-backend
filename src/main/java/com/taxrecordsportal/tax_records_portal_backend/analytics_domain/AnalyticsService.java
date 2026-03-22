@@ -11,6 +11,7 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info
 import com.taxrecordsportal.tax_records_portal_backend.common.util.UserDisplayUtil;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.RoleKey;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
+import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserStatus;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import com.taxrecordsportal.tax_records_portal_backend.common.util.DateUtil;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.TaxRecordTaskRepository;
@@ -55,22 +56,79 @@ public class AnalyticsService {
     }
 
     public TaskSummaryResponse getTaskSummary(UUID userId) {
+        LocalDate todayPH = LocalDate.now(DateUtil.ZONE_PH);
         Instant now = Instant.now();
-        TaskSummaryProjection summary = taskRepository.findTaskSummaryByUserId(userId, now);
+        Instant todayStart = DateUtil.toStartOfDay(todayPH);
+        Instant tomorrowStart = DateUtil.toStartOfDay(todayPH.plusDays(1));
+        Instant weekEnd = DateUtil.toStartOfDay(todayPH.plusDays(7));
+        Instant monthStart = DateUtil.toStartOfDay(todayPH.withDayOfMonth(1));
+        Instant lastMonthStart = DateUtil.toStartOfDay(todayPH.withDayOfMonth(1).minusMonths(1));
 
-        LocalDate thisMonthStart = LocalDate.now(DateUtil.ZONE_PH).withDayOfMonth(1);
-        Instant monthStart = DateUtil.toStartOfDay(thisMonthStart);
-        long completedThisMonth = logRepository.countCompletedByUserSince(userId, monthStart);
+        // Query 1: task-based stats (Cards 1, 2, 7 + newTasksThisMonth)
+        TaskSummaryProjection summary = taskRepository.findTaskSummaryByUserId(
+                userId, now, todayStart, tomorrowStart, weekEnd, monthStart);
+
+        // Query 2: log-based stats (Cards 3, 4, 5, 6, 8)
+        AccountantLogStatsProjection logStats = logRepository.findAccountantLogStats(
+                userId, monthStart, lastMonthStart);
+
+        // Card 4 — Efficiency
+        long totalCompleted = logStats.getTotalCompleted();
+        double onTimeRate = totalCompleted > 0
+                ? (double) logStats.getCompletedOnTime() / totalCompleted : 0.0;
+        double avgCompletionDays = logStats.getAvgCompletionDays() != null
+                ? logStats.getAvgCompletionDays() : 0.0;
+
+        // Card 5 — Quality
+        long totalApproved = logStats.getTotalApproved();
+        double firstAttemptApprovalRate = totalApproved > 0
+                ? (double) logStats.getFirstAttemptApproved() / totalApproved : 0.0;
+        double avgRejectionCycles = logStats.getAvgRejectionCycles() != null
+                ? logStats.getAvgRejectionCycles() : 0.0;
+
+        // Card 6 — Responsiveness
+        double avgDaysToFirstSubmit = logStats.getAvgDaysToFirstSubmit() != null
+                ? logStats.getAvgDaysToFirstSubmit() : 0.0;
+        double avgRejectionTurnaroundDays = logStats.getAvgRejectionTurnaroundDays() != null
+                ? logStats.getAvgRejectionTurnaroundDays() : 0.0;
+
+        // Card 8 — Trend
+        int completedThisMonth = (int) logStats.getCompletedThisMonth();
+        int completedLastMonth = (int) logStats.getCompletedLastMonth();
+        Double percentChange = completedLastMonth > 0
+                ? (completedThisMonth - completedLastMonth) * 100.0 / completedLastMonth : null;
 
         return new TaskSummaryResponse(
+                // Card 1 — Task Pipeline
                 (int) summary.getOpen(),
                 (int) summary.getSubmitted(),
                 (int) summary.getRejected(),
                 (int) summary.getApprovedForFiling(),
                 (int) summary.getFiled(),
                 (int) summary.getCompleted(),
+                // Card 2 — Deadlines
                 (int) summary.getOverdue(),
-                (int) completedThisMonth
+                (int) summary.getDueToday(),
+                (int) summary.getDueThisWeek(),
+                // Card 3 — Productivity
+                completedThisMonth,
+                (int) logStats.getSubmittedThisMonth(),
+                (int) summary.getNewTasksThisMonth(),
+                // Card 4 — Efficiency
+                onTimeRate,
+                avgCompletionDays,
+                // Card 5 — Quality
+                firstAttemptApprovalRate,
+                avgRejectionCycles,
+                // Card 6 — Responsiveness
+                avgDaysToFirstSubmit,
+                avgRejectionTurnaroundDays,
+                // Card 7 — Workload
+                (int) summary.getActiveTaskCount(),
+                (int) summary.getAssignedClientCount(),
+                // Card 8 — Trend
+                completedLastMonth,
+                percentChange
         );
     }
 
@@ -163,6 +221,39 @@ public class AnalyticsService {
         return new ClientPortfolioItem(
                 client.getId(), clientName, client.getStatus(),
                 totalTasks, pendingTasks, overdueTasks, nearestDeadline);
+    }
+
+    public List<AccountantOverviewItemResponse> getAccountantOverview() {
+        List<User> accountants = userRepository.findByRole_KeyInAndStatus(
+                List.of(RoleKey.CSD, RoleKey.OOS), UserStatus.ACTIVE);
+
+        if (accountants.isEmpty()) return List.of();
+
+        List<UUID> userIds = accountants.stream().map(User::getId).toList();
+        Instant now = Instant.now();
+
+        List<Object[]> rows = taskRepository.findAccountantOverviewMetrics(userIds, now);
+        Map<UUID, Object[]> metricsMap = rows.stream()
+                .collect(Collectors.toMap(
+                        r -> UUID.fromString(r[0].toString()),
+                        r -> r
+                ));
+
+        return accountants.stream()
+                .map(u -> {
+                    Object[] m = metricsMap.get(u.getId());
+                    return new AccountantOverviewItemResponse(
+                            u.getId(),
+                            UserDisplayUtil.formatDisplayName(u),
+                            u.getPosition() != null ? u.getPosition().getName() : null,
+                            u.getRole().getKey().name(),
+                            u.getProfileUrl(),
+                            m != null ? ((Number) m[1]).intValue() : 0,
+                            m != null ? ((Number) m[2]).intValue() : 0,
+                            m != null ? ((Number) m[3]).intValue() : 0
+                    );
+                })
+                .toList();
     }
 
     public SystemAnalyticsResponse getSystemAnalytics() {

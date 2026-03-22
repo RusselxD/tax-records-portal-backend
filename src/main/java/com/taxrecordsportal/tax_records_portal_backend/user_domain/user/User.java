@@ -7,9 +7,10 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -27,9 +28,11 @@ import static jakarta.persistence.GenerationType.UUID;
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "users", indexes = {
         @Index(name = "idx_users_email", columnList = "email"),
         @Index(name = "idx_users_role_id", columnList = "role_id"),
@@ -39,11 +42,11 @@ public class User implements UserDetails { // Spring security interface
 
     @Id
     @GeneratedValue(strategy = UUID)
+    @EqualsAndHashCode.Include
     private UUID id;
 
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "role_id", nullable = false)
-    @EqualsAndHashCode.Exclude
     @ToString.Exclude
     private Role role;
 
@@ -67,7 +70,6 @@ public class User implements UserDetails { // Spring security interface
 
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "position_id")
-    @EqualsAndHashCode.Exclude
     @ToString.Exclude
     private EmployeePosition position;
 

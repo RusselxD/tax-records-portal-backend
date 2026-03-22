@@ -13,7 +13,9 @@ public interface UserMapper {
 
     @Mapping(target = "name", expression = "java(UserDisplayUtil.formatDisplayName(user))")
     @Mapping(target = "roleName", source = "role.name")
+    @Mapping(target = "roleId", source = "role.id")
     @Mapping(target = "position", source = "position.name")
+    @Mapping(target = "positionId", source = "position.id")
     UserListItemResponse mapUserToListItem(User user);
 
     ClientAccountResponse toClientAccountResponse(User user);

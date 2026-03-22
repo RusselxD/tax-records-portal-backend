@@ -1,5 +1,6 @@
 package com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task_log;
 
+import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.AccountantLogStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.ApprovalRateProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.OnTimeStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.QualityStatsProjection;
@@ -100,6 +101,84 @@ public interface TaxRecordTaskLogRepository extends JpaRepository<TaxRecordTaskL
             FROM task_metrics
             """)
     QualityStatsProjection findQualityStatsByUser(@Param("userId") UUID userId);
+
+    // --- Combined per-accountant log stats (Cards 3, 4, 5, 6, 8) ---
+
+    @Query(nativeQuery = true, value = """
+            WITH user_tasks AS (
+                SELECT t.id, t.deadline, t.created_at AS task_created_at
+                FROM tax_record_tasks t
+                JOIN tax_record_task_accountants ta ON ta.task_id = t.id
+                WHERE ta.user_id = :userId
+            ),
+            all_logs AS (
+                SELECT l.task_id, l.action, l.created_at, l.performed_by, ut.deadline, ut.task_created_at
+                FROM tax_record_task_logs l
+                JOIN user_tasks ut ON ut.id = l.task_id
+            ),
+            productivity AS (
+                SELECT COUNT(DISTINCT task_id) FILTER (WHERE action = 'SUBMITTED' AND performed_by = :userId AND created_at >= :monthStart) AS submittedThisMonth,
+                       COUNT(DISTINCT task_id) FILTER (WHERE action = 'COMPLETED' AND performed_by = :userId AND created_at >= :monthStart) AS completedThisMonth,
+                       COUNT(DISTINCT task_id) FILTER (WHERE action = 'COMPLETED' AND performed_by = :userId AND created_at >= :lastMonthStart AND created_at < :monthStart) AS completedLastMonth
+                FROM all_logs
+            ),
+            efficiency AS (
+                SELECT COUNT(*) AS totalCompleted,
+                       COUNT(*) FILTER (WHERE created_at <= deadline) AS completedOnTime,
+                       COALESCE(AVG(EXTRACT(EPOCH FROM (created_at - task_created_at)) / 86400.0), 0) AS avgCompletionDays
+                FROM all_logs
+                WHERE action = 'COMPLETED' AND performed_by = :userId
+            ),
+            task_quality AS (
+                SELECT task_id,
+                       COUNT(*) FILTER (WHERE action = 'REJECTED') AS rejection_count
+                FROM all_logs
+                WHERE action IN ('APPROVED', 'REJECTED', 'SUBMITTED')
+                GROUP BY task_id
+                HAVING COUNT(*) FILTER (WHERE action = 'APPROVED') > 0
+            ),
+            quality AS (
+                SELECT COUNT(*) AS totalApproved,
+                       COUNT(*) FILTER (WHERE rejection_count = 0) AS firstAttemptApproved,
+                       COALESCE(AVG(rejection_count::float) FILTER (WHERE rejection_count > 0), 0) AS avgRejectionCycles
+                FROM task_quality
+            ),
+            first_events AS (
+                SELECT task_id,
+                       MIN(created_at) FILTER (WHERE action = 'CREATED') AS created_at,
+                       MIN(created_at) FILTER (WHERE action = 'SUBMITTED') AS first_submitted_at
+                FROM all_logs
+                GROUP BY task_id
+                HAVING MIN(created_at) FILTER (WHERE action = 'SUBMITTED') IS NOT NULL
+                   AND MIN(created_at) FILTER (WHERE action = 'CREATED') IS NOT NULL
+            ),
+            responsiveness_submit AS (
+                SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (first_submitted_at - created_at)) / 86400.0), 0) AS avgDaysToFirstSubmit
+                FROM first_events
+            ),
+            ordered_events AS (
+                SELECT task_id, action, created_at,
+                       LEAD(created_at) OVER (PARTITION BY task_id ORDER BY created_at) AS next_at,
+                       LEAD(action) OVER (PARTITION BY task_id ORDER BY created_at) AS next_action
+                FROM all_logs
+                WHERE action IN ('REJECTED', 'SUBMITTED')
+            ),
+            responsiveness_reject AS (
+                SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (next_at - created_at)) / 86400.0), 0) AS avgRejectionTurnaroundDays
+                FROM ordered_events
+                WHERE action = 'REJECTED' AND next_action = 'SUBMITTED'
+            )
+            SELECT p.submittedThisMonth, p.completedThisMonth, p.completedLastMonth,
+                   e.totalCompleted, e.completedOnTime, e.avgCompletionDays,
+                   q.totalApproved, q.firstAttemptApproved, q.avgRejectionCycles,
+                   rs.avgDaysToFirstSubmit,
+                   rr.avgRejectionTurnaroundDays
+            FROM productivity p, efficiency e, quality q, responsiveness_submit rs, responsiveness_reject rr
+            """)
+    AccountantLogStatsProjection findAccountantLogStats(
+            @Param("userId") UUID userId,
+            @Param("monthStart") Instant monthStart,
+            @Param("lastMonthStart") Instant lastMonthStart);
 
     // --- System-wide analytics queries (no user scope) ---
 
