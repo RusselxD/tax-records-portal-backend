@@ -4,6 +4,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -25,6 +26,17 @@ public class EmailService {
 
     @Value("${application.frontend-url}")
     private String frontendUrl;
+
+    @Value("${spring.mail.host}")
+    private String mailHost;
+
+    @Value("${spring.mail.port}")
+    private int mailPort;
+
+    @PostConstruct
+    void logMailConfig() {
+        log.info("Mail config: host={}, port={}, username={}", mailHost, mailPort, fromEmail);
+    }
 
     @Async
     public void sendActivationEmail(String to, String firstName, String token) {
@@ -60,6 +72,7 @@ public class EmailService {
 
     private void sendHtmlEmail(String to, String subject, String body) {
         try {
+            log.info("Sending email to {} via {}:{}", to, mailHost, mailPort);
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true);
             helper.setFrom(fromEmail);
@@ -67,7 +80,9 @@ public class EmailService {
             helper.setSubject(subject);
             helper.setText(body, true);
             mailSender.send(message);
+            log.info("Email sent successfully to {}", to);
         } catch (MessagingException e) {
+            log.error("MessagingException sending email to {}: {}", to, e.getMessage(), e);
             throw new RuntimeException("Failed to send email", e);
         }
     }
