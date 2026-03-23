@@ -2,6 +2,7 @@ package com.taxrecordsportal.tax_records_portal_backend.user_domain.user;
 
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Client;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientRepository;
+import com.taxrecordsportal.tax_records_portal_backend.common.R2StorageService;
 import com.taxrecordsportal.tax_records_portal_backend.common_domain.email.EmailService;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.employee_position.EmployeePosition;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.employee_position.EmployeePositionRepository;
@@ -25,9 +26,10 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.mapper.U
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.TokenType;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.UserToken;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.UserTokenRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -36,13 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -65,21 +63,10 @@ public class UserService {
     private final UserTokenRepository userTokenRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final R2StorageService r2StorageService;
 
     @Value("${application.security.jwt.activation-token-expiration}")
     private long activationTokenExpiration;
-
-    @Value("${application.file.upload-dir}")
-    private String uploadDir;
-
-    @PostConstruct
-    public void init() {
-        try {
-            Files.createDirectories(Paths.get(uploadDir, "avatars"));
-        } catch (IOException e) {
-            throw new RuntimeException("Could not create avatars directory", e);
-        }
-    }
 
     @Transactional(readOnly = true)
     public List<UserListItemResponse> getAllEmployees() {
@@ -323,18 +310,18 @@ public class UserService {
         }
 
         User currentUser = getCurrentUser();
-        Path avatarDir = Paths.get(uploadDir, "avatars", currentUser.getId().toString());
+        String prefix = "avatars/" + currentUser.getId() + "/";
 
         try {
-            Files.createDirectories(avatarDir);
+            // Delete old avatar from R2 if present
+            if (currentUser.getProfileUrl() != null) {
+                r2StorageService.deleteByPrefix(prefix);
+            }
 
-            // Delete old avatar file if present
-            deleteAvatarFileFromDisk(currentUser, avatarDir);
+            String key = prefix + UUID.randomUUID() + "." + extension;
+            String contentType = extension.equals("png") ? "image/png" : "image/jpeg";
+            r2StorageService.upload(key, file.getBytes(), contentType);
 
-            String storedFilename = UUID.randomUUID() + "-" + originalFilename;
-            Files.copy(file.getInputStream(), avatarDir.resolve(storedFilename), StandardCopyOption.REPLACE_EXISTING);
-
-            // TODO: S3 migration — replace with S3 upload and store the full S3 URL directly
             String profileUrl = "/api/v1/users/" + currentUser.getId() + "/avatar";
             currentUser.setProfileUrl(profileUrl);
             userRepository.save(currentUser);
@@ -352,8 +339,7 @@ public class UserService {
             return;
         }
 
-        Path avatarDir = Paths.get(uploadDir, "avatars", currentUser.getId().toString());
-        deleteAvatarFileFromDisk(currentUser, avatarDir);
+        r2StorageService.deleteByPrefix("avatars/" + currentUser.getId() + "/");
 
         currentUser.setProfileUrl(null);
         userRepository.save(currentUser);
@@ -375,30 +361,16 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public AvatarResult getAvatarWithMediaType(UUID userId) {
-        Path avatarDir = Paths.get(uploadDir, "avatars", userId.toString());
-        try (var files = Files.list(avatarDir)) {
-            Path avatarFile = files.findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Avatar not found"));
-            Resource resource = new UrlResource(avatarFile.toUri());
-            if (!resource.exists() || !resource.isReadable()) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Avatar not found");
-            }
-            String mediaType;
-            try { mediaType = Files.probeContentType(avatarFile); } catch (IOException e) { mediaType = null; }
-            return new AvatarResult(resource, mediaType != null ? mediaType : "application/octet-stream");
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (IOException e) {
+        List<String> keys = r2StorageService.listKeys("avatars/" + userId + "/");
+        if (keys.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Avatar not found");
         }
-    }
-
-    private void deleteAvatarFileFromDisk(User user, Path avatarDir) {
-        if (user.getProfileUrl() == null) return;
-        try (var files = Files.list(avatarDir)) {
-            files.forEach(path -> {
-                try { Files.deleteIfExists(path); } catch (IOException ignored) {}
-            });
-        } catch (IOException ignored) {}
+        String key = keys.get(0);
+        String filename = key.substring(key.lastIndexOf('/') + 1);
+        String mediaType;
+        try { mediaType = Files.probeContentType(Path.of(filename)); } catch (IOException e) { mediaType = null; }
+        return new AvatarResult(
+                new InputStreamResource(r2StorageService.download(key)),
+                mediaType != null ? mediaType : "application/octet-stream");
     }
 }

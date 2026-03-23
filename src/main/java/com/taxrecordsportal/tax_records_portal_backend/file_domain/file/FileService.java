@@ -1,14 +1,13 @@
 package com.taxrecordsportal.tax_records_portal_backend.file_domain.file;
 
+import com.taxrecordsportal.tax_records_portal_backend.common.R2StorageService;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Client;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientRepository;
 import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.dto.FileUploadResponse;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -16,11 +15,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
 
@@ -32,20 +28,9 @@ public class FileService {
             "pdf", "png", "jpg", "jpeg", "doc", "docx", "xls", "xlsx", "csv", "txt"
     );
 
-    @Value("${application.file.upload-dir}")
-    private String uploadDir;
-
     private final ClientRepository clientRepository;
     private final FileRepository fileRepository;
-
-    @PostConstruct
-    public void init() {
-        try {
-            Files.createDirectories(Paths.get(uploadDir));
-        } catch (IOException e) {
-            throw new RuntimeException("Could not create upload directory", e);
-        }
-    }
+    private final R2StorageService r2StorageService;
 
     public FileUploadResponse upload(UUID clientId, MultipartFile file) {
         Client client = getAccessibleClient(clientId);
@@ -57,7 +42,7 @@ public class FileService {
 
         String originalFilename = file.getOriginalFilename();
         if (originalFilename != null) {
-            originalFilename = Paths.get(originalFilename).getFileName().toString();
+            originalFilename = Path.of(originalFilename).getFileName().toString();
         }
         String extension = getExtension(originalFilename);
 
@@ -65,22 +50,18 @@ public class FileService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File type not allowed");
         }
 
-        String storedFilename = UUID.randomUUID() + "-" + originalFilename;
-        Path clientDir = Paths.get(uploadDir, clientId.toString());
+        String key = "clients/" + clientId + "/" + UUID.randomUUID() + "-" + originalFilename;
+        String contentType = resolveMediaType(originalFilename);
 
         try {
-            Files.createDirectories(clientDir);
-            Path targetPath = clientDir.resolve(storedFilename);
-            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+            r2StorageService.upload(key, file.getBytes(), contentType);
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to store file");
         }
 
-        String url = "/api/v1/clients/" + clientId + "/files/" + storedFilename;
-
         FileEntity fileEntity = new FileEntity();
         fileEntity.setName(originalFilename);
-        fileEntity.setUrl(url);
+        fileEntity.setUrl(key);
         fileEntity.setClient(client);
         fileEntity.setUploadedBy(currentUser);
         fileEntity = fileRepository.save(fileEntity);
@@ -89,33 +70,15 @@ public class FileService {
     }
 
     public void deleteAllByClient(UUID clientId) {
+        r2StorageService.deleteByPrefix("clients/" + clientId + "/");
         fileRepository.deleteAllByClientId(clientId);
-
-        Path clientDir = Paths.get(uploadDir, clientId.toString()).normalize();
-        if (java.nio.file.Files.exists(clientDir)) {
-            try (var walker = java.nio.file.Files.walk(clientDir)) {
-                walker.sorted(java.util.Comparator.reverseOrder())
-                        .forEach(path -> {
-                            try { java.nio.file.Files.delete(path); } catch (IOException ignored) {}
-                        });
-            } catch (IOException ignored) {}
-        }
     }
 
     public void delete(UUID fileId) {
         FileEntity fileEntity = fileRepository.findWithClientById(fileId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found"));
 
-        UUID clientId = fileEntity.getClient().getId();
-        String filename = fileEntity.getUrl().substring(fileEntity.getUrl().lastIndexOf('/') + 1);
-        Path filePath = Paths.get(uploadDir, clientId.toString(), filename).normalize();
-
-        try {
-            Files.deleteIfExists(filePath);
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to delete file from storage");
-        }
-
+        r2StorageService.delete(fileEntity.getUrl());
         fileRepository.delete(fileEntity);
     }
 
@@ -123,32 +86,14 @@ public class FileService {
         FileEntity fileEntity = fileRepository.findWithClientById(fileId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found"));
 
-        UUID clientId = fileEntity.getClient().getId();
         enforceClientAccess(fileEntity.getClient());
 
-        String filename = fileEntity.getUrl().substring(fileEntity.getUrl().lastIndexOf('/') + 1);
-        Path filePath = Paths.get(uploadDir, clientId.toString(), filename).normalize();
-
-        // prevent path traversal
-        if (!filePath.startsWith(Paths.get(uploadDir, clientId.toString()).normalize())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
-        }
-
-        try {
-            Resource resource = new UrlResource(filePath.toUri());
-            if (!resource.exists() || !resource.isReadable()) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found");
-            }
-            return resource;
-        } catch (MalformedURLException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found");
-        }
+        return new InputStreamResource(r2StorageService.download(fileEntity.getUrl()));
     }
 
     public String resolveMediaType(String filename) {
         try {
-            Path path = Paths.get(filename);
-            String contentType = Files.probeContentType(path);
+            String contentType = Files.probeContentType(Path.of(filename));
             return contentType != null ? contentType : "application/octet-stream";
         } catch (IOException e) {
             return "application/octet-stream";

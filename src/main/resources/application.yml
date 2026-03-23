@@ -7,7 +7,7 @@ spring:
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: none    #
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
@@ -36,6 +36,13 @@ application:
   frontend-url: ${FRONTEND_URL}
   file:
     upload-dir: ${FILE_UPLOAD_DIR:./uploads}
+  storage:
+    r2:
+      account-id: ${R2_ACCOUNT_ID}
+      access-key-id: ${R2_ACCESS_KEY_ID}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY}
+      bucket-name: ${R2_BUCKET_NAME}
+      endpoint: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
   security:
     jwt:
       secret-key: ${SECRET_KEY}
