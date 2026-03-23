@@ -16,6 +16,9 @@ public interface ClientMapper {
     @Mapping(target = "name", expression = "java(computeClientName(client))")
     @Mapping(target = "email", expression = "java(computeClientEmail(client))")
     @Mapping(target = "hasActiveTask", ignore = true)
+    @Mapping(target = "activeTaskId", ignore = true)
+    @Mapping(target = "lastTaskId", ignore = true)
+    @Mapping(target = "handedOff", source = "handedOff")
     OnboardingClientListItemResponse toOnboardingListItem(Client client);
 
     @Mapping(target = "id", ignore = true)

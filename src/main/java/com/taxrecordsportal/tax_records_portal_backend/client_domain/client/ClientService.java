@@ -93,15 +93,27 @@ public class ClientService {
     @Transactional(readOnly = true)
     public List<OnboardingClientListItemResponse> getOnboardingClients() {
         List<Client> clients = clientRepository.findByCreatedById(getCurrentUser().getId());
-        Set<UUID> activeTaskClientIds = clientInfoTaskRepository.findClientIdsWithActiveTask();
+        List<UUID> clientIds = clients.stream().map(Client::getId).toList();
+
+        Map<UUID, UUID> activeTaskIdByClientId = clientInfoTaskRepository
+                .findActiveTasksByClientIds(clientIds).stream()
+                .collect(Collectors.toMap(t -> t.getClient().getId(), t -> t.getId()));
+
+        Map<UUID, UUID> lastTaskIdByClientId = clientInfoTaskRepository
+                .findLatestTasksByClientIds(clientIds).stream()
+                .collect(Collectors.toMap(t -> t.getClient().getId(), t -> t.getId()));
 
         return clients.stream()
                 .map(client -> {
                     OnboardingClientListItemResponse base = clientMapper.toOnboardingListItem(client);
+                    UUID activeTaskId = activeTaskIdByClientId.get(client.getId());
                     return new OnboardingClientListItemResponse(
                             base.id(), base.name(), base.email(), base.status(),
                             base.createdAt(), base.updatedAt(),
-                            activeTaskClientIds.contains(client.getId())
+                            activeTaskId != null,
+                            activeTaskId,
+                            lastTaskIdByClientId.get(client.getId()),
+                            client.isHandedOff()
                     );
                 })
                 .toList();
@@ -253,6 +265,7 @@ public class ClientService {
         List<UUID> clientIds = clientPage.getContent().stream().map(Client::getId).toList();
 
         Map<UUID, ClientTaskMetrics> metricsMap = Map.of();
+        Map<UUID, Set<User>> accountantsMap = Map.of();
         if (!clientIds.isEmpty()) {
             Instant now = Instant.now();
             boolean unscopedMetrics = canViewAll || currentUser.getRole().getKey() == RoleKey.QTD;
@@ -261,22 +274,26 @@ public class ClientService {
                     : taxRecordTaskRepository.findTaskMetricsByClientIdsAndUserId(clientIds, scopedUserId, now);
             metricsMap = metrics.stream()
                     .collect(Collectors.toMap(ClientTaskMetrics::getClientId, m -> m));
+
+            accountantsMap = clientRepository.findByIdIn(clientIds).stream()
+                    .collect(Collectors.toMap(Client::getId, c -> c.getAccountants() != null ? c.getAccountants() : Set.of()));
         }
 
         Map<UUID, ClientTaskMetrics> finalMetricsMap = metricsMap;
+        Map<UUID, Set<User>> finalAccountantsMap = accountantsMap;
         List<ClientListItemResponse> content = clientPage.getContent().stream()
-                .map(client -> toClientListItem(client, finalMetricsMap.get(client.getId())))
+                .map(client -> toClientListItem(client, finalMetricsMap.get(client.getId()), finalAccountantsMap.get(client.getId())))
                 .toList();
 
         return new PageResponse<>(content, clientPage.getNumber(), clientPage.getSize(),
                 clientPage.getTotalElements(), clientPage.getTotalPages());
     }
 
-    private ClientListItemResponse toClientListItem(Client client, ClientTaskMetrics metrics) {
+    private ClientListItemResponse toClientListItem(Client client, ClientTaskMetrics metrics, Set<User> accountants) {
         String clientName = clientMapper.computeClientName(client);
 
-        List<String> accountantNames = client.getAccountants() != null
-                ? client.getAccountants().stream()
+        List<String> accountantNames = accountants != null
+                ? accountants.stream()
                     .map(UserDisplayUtil::formatDisplayName)
                     .toList()
                 : List.of();
@@ -344,6 +361,9 @@ public class ClientService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Accountants must be assigned before handoff");
         }
 
+        client.setHandedOff(true);
+        clientRepository.save(client);
+
         String clientName = clientMapper.computeClientName(client);
         String message = "Client handed off: " + (clientName != null ? clientName : "Unknown");
         notificationService.notifyAll(
@@ -355,8 +375,17 @@ public class ClientService {
 
     @Transactional
     public void activateClient(UUID clientId, ClientActivateRequest request) {
-        Client client = clientRepository.findById(clientId)
+        Client client = clientRepository.findWithAccountantsById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+
+        User currentUser = getCurrentUser();
+        boolean hasClientCreate = currentUser.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("client.create"));
+        boolean isAssigned = client.getAccountants() != null
+                && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
+        if (!hasClientCreate && !isAssigned) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+        }
 
         if (client.getUser() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Client already has an account");

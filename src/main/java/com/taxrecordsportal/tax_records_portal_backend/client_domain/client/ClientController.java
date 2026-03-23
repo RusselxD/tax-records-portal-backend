@@ -59,7 +59,7 @@ public class ClientController {
     }
 
     @GetMapping("/active")
-    @PreAuthorize("hasAuthority('task.create')")
+    @PreAuthorize("hasAuthority('task.create') or hasAuthority('task.view.own')")
     public ResponseEntity<List<ClientLookupResponse>> getActiveClients() {
         return ResponseEntity.ok(clientService.getActiveClients());
     }
@@ -136,7 +136,7 @@ public class ClientController {
     }
 
     @PostMapping("/{clientId}/activate")
-    @PreAuthorize("hasAuthority('client.create')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> activateClient(
             @PathVariable UUID clientId,
             @Valid @RequestBody ClientActivateRequest request

@@ -40,6 +40,19 @@ public interface ClientInfoTaskRepository extends JpaRepository<ClientInfoTask, 
     @Query("SELECT t.client.id FROM ClientInfoTask t WHERE t.status = 'SUBMITTED'")
     Set<UUID> findClientIdsWithActiveTask();
 
+    @Query("SELECT t FROM ClientInfoTask t WHERE t.status = 'SUBMITTED' AND t.client.id IN :clientIds")
+    List<ClientInfoTask> findActiveTasksByClientIds(@Param("clientIds") List<UUID> clientIds);
+
+    @Query("""
+            SELECT t FROM ClientInfoTask t
+            WHERE t.client.id IN :clientIds
+              AND t.submittedAt = (
+                  SELECT MAX(t2.submittedAt) FROM ClientInfoTask t2
+                  WHERE t2.client.id = t.client.id
+              )
+            """)
+    List<ClientInfoTask> findLatestTasksByClientIds(@Param("clientIds") List<UUID> clientIds);
+
     Optional<ClientInfoTask> findTopByClientIdOrderBySubmittedAtDesc(UUID clientId);
 
     Optional<ClientInfoTask> findTopByClientIdAndTypeOrderBySubmittedAtDesc(UUID clientId, ClientInfoTaskType type);

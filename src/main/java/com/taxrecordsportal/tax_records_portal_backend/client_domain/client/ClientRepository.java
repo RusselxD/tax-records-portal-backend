@@ -19,7 +19,7 @@ import java.util.UUID;
 public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecificationExecutor<Client> {
 
     @Override
-    @EntityGraph(attributePaths = {"clientInfo", "accountants"})
+    @EntityGraph(attributePaths = {"clientInfo"})
     Page<Client> findAll(@NonNull Specification<Client> spec, @NonNull Pageable pageable);
 
     Long countByStatus(ClientStatus status);

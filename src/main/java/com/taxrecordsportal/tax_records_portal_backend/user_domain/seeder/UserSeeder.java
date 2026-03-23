@@ -1,6 +1,5 @@
 package com.taxrecordsportal.tax_records_portal_backend.user_domain.seeder;
 
-import com.taxrecordsportal.tax_records_portal_backend.common_domain.email.EmailService;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.employee_position.EmployeePosition;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.employee_position.EmployeePositionRepository;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.Role;
@@ -9,19 +8,13 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.RoleRepo
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserRepository;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserStatus;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.TokenType;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.UserToken;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.UserTokenRepository;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Instant;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -31,11 +24,7 @@ public class UserSeeder implements CommandLineRunner {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final EmployeePositionRepository employeePositionRepository;
-    private final UserTokenRepository userTokenRepository;
-    private final EmailService emailService;
-
-    @Value("${application.security.jwt.activation-token-expiration}")
-    private long activationTokenExpiration;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -56,20 +45,8 @@ public class UserSeeder implements CommandLineRunner {
         manager.setEmail("russelcabigquez8@gmail.com");
         manager.setRole(managerRole);
         manager.setPosition(operationsMre);
-        manager.setStatus(UserStatus.PENDING);
-        User savedUser = userRepository.save(manager);
-
-        UserToken activationToken = new UserToken();
-        activationToken.setUser(savedUser);
-        activationToken.setToken(UUID.randomUUID().toString());
-        activationToken.setType(TokenType.ACCOUNT_ACTIVATION);
-        activationToken.setExpiresAt(Instant.now().plusMillis(activationTokenExpiration));
-        userTokenRepository.save(activationToken);
-
-        emailService.sendActivationEmail(
-                savedUser.getEmail(),
-                savedUser.getFirstName(),
-                activationToken.getToken()
-        );
+        manager.setStatus(UserStatus.ACTIVE);
+        manager.setPasswordHash(passwordEncoder.encode("Admin123!"));
+        userRepository.save(manager);
     }
 }

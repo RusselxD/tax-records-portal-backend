@@ -19,6 +19,14 @@ public class TaxTaskNameService {
     private final TaxTaskSubCategoryService taxTaskSubCategoryService;
 
     @Transactional(readOnly = true)
+    public List<TaxTaskNameResponse> getAll() {
+        return taxTaskNameRepository.findAll()
+                .stream()
+                .map(t -> new TaxTaskNameResponse(t.getId(), t.getName()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<TaxTaskNameResponse> getBySubCategory(Integer subCategoryId) {
         return taxTaskNameRepository.findBySubCategoryId(subCategoryId)
                 .stream()

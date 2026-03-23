@@ -12,6 +12,9 @@ public record OnboardingClientListItemResponse(
         ClientStatus status,
         Instant createdAt,
         Instant updatedAt,
-        boolean hasActiveTask
+        boolean hasActiveTask,
+        UUID activeTaskId,
+        UUID lastTaskId,
+        boolean handedOff
 ) {
 }

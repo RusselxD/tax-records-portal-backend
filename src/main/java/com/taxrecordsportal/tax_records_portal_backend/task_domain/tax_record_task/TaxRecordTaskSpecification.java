@@ -26,8 +26,6 @@ public final class TaxRecordTaskSpecification {
     public static Specification<TaxRecordTask> withFilters(
             String search,
             UUID clientId,
-            Integer categoryId,
-            Integer subCategoryId,
             Integer taskNameId,
             Integer year,
             Period period,
@@ -42,12 +40,6 @@ public final class TaxRecordTaskSpecification {
             // --- Exact-match filters (all optional) ---
             if (clientId != null) {
                 predicates.add(cb.equal(root.get("client").get("id"), clientId));
-            }
-            if (categoryId != null) {
-                predicates.add(cb.equal(root.get("category").get("id"), categoryId));
-            }
-            if (subCategoryId != null) {
-                predicates.add(cb.equal(root.get("subCategory").get("id"), subCategoryId));
             }
             if (taskNameId != null) {
                 predicates.add(cb.equal(root.get("taskName").get("id"), taskNameId));

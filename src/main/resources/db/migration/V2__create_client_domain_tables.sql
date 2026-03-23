@@ -4,6 +4,7 @@ CREATE TABLE clients (
     version       BIGINT       NOT NULL DEFAULT 0,
     user_id       UUID REFERENCES users(id),
     status        VARCHAR(255) NOT NULL,
+    handed_off    BOOLEAN      NOT NULL DEFAULT FALSE,
     created_by    UUID         NOT NULL REFERENCES users(id),
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ

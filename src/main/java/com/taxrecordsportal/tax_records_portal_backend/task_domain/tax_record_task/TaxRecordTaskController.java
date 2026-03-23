@@ -88,8 +88,6 @@ public class TaxRecordTaskController {
     public ResponseEntity<PageResponse<TaxRecordTaskListItemResponse>> getTasks(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) UUID clientId,
-            @RequestParam(required = false) Integer categoryId,
-            @RequestParam(required = false) Integer subCategoryId,
             @RequestParam(required = false) Integer taskNameId,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Period period,
@@ -99,7 +97,7 @@ public class TaxRecordTaskController {
             @RequestParam(defaultValue = "20") int size
     ) {
         return ResponseEntity.ok(taxRecordTaskService.getTasks(
-                search, clientId, categoryId, subCategoryId, taskNameId,
+                search, clientId, taskNameId,
                 year, period, status, accountantId, page, size));
     }
 

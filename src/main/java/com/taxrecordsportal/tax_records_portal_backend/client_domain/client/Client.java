@@ -52,6 +52,9 @@ public class Client {
     @Column(name = "status", nullable = false)
     private ClientStatus status;
 
+    @Column(name = "handed_off", nullable = false)
+    private boolean handedOff = false;
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private Instant updatedAt;

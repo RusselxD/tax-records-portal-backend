@@ -62,7 +62,7 @@ public class TaxRecordTaskService {
     /** Paginated, filtered task list with permission-based scoping. */
     @Transactional(readOnly = true)
     public PageResponse<TaxRecordTaskListItemResponse> getTasks(
-            String search, UUID clientId, Integer categoryId, Integer subCategoryId,
+            String search, UUID clientId,
             Integer taskNameId, Integer year, Period period, TaxRecordTaskStatus status,
             UUID accountantId, int page, int size
     ) {
@@ -84,7 +84,7 @@ public class TaxRecordTaskService {
         }
 
         Specification<TaxRecordTask> spec = TaxRecordTaskSpecification.withFilters(
-                search, clientId, categoryId, subCategoryId, taskNameId,
+                search, clientId, taskNameId,
                 year, period, status, effectiveAccountantId, scopedUserId, clientScopedUserId);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
