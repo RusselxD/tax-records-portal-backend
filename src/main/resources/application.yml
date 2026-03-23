@@ -17,16 +17,18 @@ spring:
         format_sql: false
   mail:
     host: ${MAIL_HOST}
-    port: ${MAIL_PORT}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
           auth: true
+          ssl:
+            enable: ${MAIL_SSL_ENABLE:false}
           starttls:
-            enabled: true
-            required: true
+            enabled: ${MAIL_STARTTLS_ENABLE:true}
+            required: ${MAIL_STARTTLS_ENABLE:true}
   servlet:
     multipart:
       max-file-size: 10MB
