@@ -574,7 +574,8 @@ public class ClientService {
                 activeTaskType,
                 lastReviewStatus,
                 pocEmail,
-                isProfileApproved
+                isProfileApproved,
+                client.isHandedOff()
         );
     }
 

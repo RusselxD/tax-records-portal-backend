@@ -19,5 +19,6 @@ public record ClientInfoHeaderResponse(
         ClientInfoTaskType activeTaskType,
         ClientInfoTaskStatus lastReviewStatus,
         String pocEmail,
-        boolean isProfileApproved
+        boolean isProfileApproved,
+        boolean handedOff
 ) {}
