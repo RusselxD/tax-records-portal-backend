@@ -1,41 +1,46 @@
 package com.taxrecordsportal.tax_records_portal_backend.common_domain.email;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
+import com.sendgrid.Method;
+import com.sendgrid.Request;
+import com.sendgrid.Response;
+import com.sendgrid.SendGrid;
+import com.sendgrid.helpers.mail.Mail;
+import com.sendgrid.helpers.mail.objects.Content;
+import com.sendgrid.helpers.mail.objects.Email;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.io.IOException;
+
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EmailService {
 
-    private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
+    private final SendGrid sendGrid;
+    private final String fromEmail;
+    private final String frontendUrl;
 
-    @Value("${spring.mail.username}")
-    private String fromEmail;
-
-    @Value("${application.frontend-url}")
-    private String frontendUrl;
-
-    @Value("${spring.mail.host}")
-    private String mailHost;
-
-    @Value("${spring.mail.port}")
-    private int mailPort;
+    public EmailService(
+            TemplateEngine templateEngine,
+            @Value("${sendgrid.api-key}") String apiKey,
+            @Value("${spring.mail.from}") String fromEmail,
+            @Value("${application.frontend-url}") String frontendUrl
+    ) {
+        this.templateEngine = templateEngine;
+        this.sendGrid = new SendGrid(apiKey);
+        this.fromEmail = fromEmail;
+        this.frontendUrl = frontendUrl;
+    }
 
     @PostConstruct
     void logMailConfig() {
-        log.info("Mail config: host={}, port={}, username={}", mailHost, mailPort, fromEmail);
+        log.info("SendGrid email configured with from={}", fromEmail);
     }
 
     @Async
@@ -72,17 +77,28 @@ public class EmailService {
 
     private void sendHtmlEmail(String to, String subject, String body) {
         try {
-            log.info("Sending email to {} via {}:{}", to, mailHost, mailPort);
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true);
-            helper.setFrom(fromEmail);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(body, true);
-            mailSender.send(message);
-            log.info("Email sent successfully to {}", to);
-        } catch (MessagingException e) {
-            log.error("MessagingException sending email to {}: {}", to, e.getMessage(), e);
+            log.info("Sending email to {} via SendGrid", to);
+
+            Email from = new Email(fromEmail);
+            Email toEmail = new Email(to);
+            Content content = new Content("text/html", body);
+            Mail mail = new Mail(from, subject, toEmail, content);
+
+            Request request = new Request();
+            request.setMethod(Method.POST);
+            request.setEndpoint("mail/send");
+            request.setBody(mail.build());
+
+            Response response = sendGrid.api(request);
+
+            if (response.getStatusCode() >= 400) {
+                log.error("SendGrid error sending to {}: status={}, body={}", to, response.getStatusCode(), response.getBody());
+                throw new RuntimeException("Failed to send email: " + response.getBody());
+            }
+
+            log.info("Email sent successfully to {} (status={})", to, response.getStatusCode());
+        } catch (IOException e) {
+            log.error("IOException sending email to {}: {}", to, e.getMessage(), e);
             throw new RuntimeException("Failed to send email", e);
         }
     }

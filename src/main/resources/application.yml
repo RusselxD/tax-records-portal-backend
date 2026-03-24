@@ -16,19 +16,7 @@ spring:
       hibernate:
         format_sql: false
   mail:
-    host: ${MAIL_HOST}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          ssl:
-            enable: ${MAIL_SSL_ENABLE:false}
-          starttls:
-            enabled: ${MAIL_STARTTLS_ENABLE:true}
-            required: ${MAIL_STARTTLS_ENABLE:true}
+    from: ${MAIL_USERNAME}
   servlet:
     multipart:
       max-file-size: 10MB
@@ -36,6 +24,9 @@ spring:
   web:
     error:
       include-stacktrace: never
+
+sendgrid:
+  api-key: ${SENDGRID_API_KEY}
 
 application:
   frontend-url: ${FRONTEND_URL}
