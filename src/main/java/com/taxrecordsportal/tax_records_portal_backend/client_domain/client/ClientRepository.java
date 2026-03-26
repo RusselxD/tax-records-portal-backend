@@ -2,6 +2,7 @@ package com.taxrecordsportal.tax_records_portal_backend.client_domain.client;
 
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.ClientStatusCountProjection;
 import com.taxrecordsportal.tax_records_portal_backend.analytics_domain.projection.SystemClientStatsProjection;
+import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,7 +25,7 @@ public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecif
 
     Long countByStatus(ClientStatus status);
 
-    @EntityGraph(attributePaths = {"user", "clientInfo", "accountants"})
+    @EntityGraph(attributePaths = {"users", "clientInfo", "accountants"})
     List<Client> findByCreatedById(UUID createdById);
 
     @EntityGraph(attributePaths = {"createdBy", "accountants", "clientInfo"})
@@ -35,16 +36,14 @@ public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecif
 
     Long countByStatusNot(ClientStatus clientStatus);
 
-    boolean existsByIdAndUserIsNotNull(UUID id);
-
     @EntityGraph(attributePaths = {"createdBy", "accountants"})
     Optional<Client> findWithCreatorAndAccountantsById(UUID id);
 
-    @EntityGraph(attributePaths = {"user", "createdBy"})
-    Optional<Client> findWithUserAndCreatorById(UUID id);
+    @EntityGraph(attributePaths = {"users", "createdBy"})
+    Optional<Client> findWithUsersAndCreatorById(UUID id);
 
-    @EntityGraph(attributePaths = {"createdBy", "accountants", "user"})
-    Optional<Client> findWithCreatorAccountantsAndUserById(UUID id);
+    @EntityGraph(attributePaths = {"createdBy", "accountants", "users"})
+    Optional<Client> findWithCreatorAccountantsAndUsersById(UUID id);
 
     @EntityGraph(attributePaths = {"clientInfo"})
     List<Client> findByAccountantsId(UUID userId);
@@ -61,11 +60,17 @@ public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecif
     @EntityGraph(attributePaths = {"accountants"})
     Optional<Client> findWithAccountantsById(UUID id);
 
-    @EntityGraph(attributePaths = {"accountants", "user"})
-    Optional<Client> findWithAccountantsAndUserById(UUID id);
+    @EntityGraph(attributePaths = {"users"})
+    Optional<Client> findWithUsersById(UUID id);
 
-    @EntityGraph(attributePaths = {"clientInfo", "accountants", "user"})
-    Optional<Client> findWithInfoAccountantsAndUserById(UUID id);
+    @EntityGraph(attributePaths = {"clientInfo", "users"})
+    Optional<Client> findWithInfoAndUsersById(UUID id);
+
+    @EntityGraph(attributePaths = {"accountants", "users"})
+    Optional<Client> findWithAccountantsAndUsersById(UUID id);
+
+    @EntityGraph(attributePaths = {"clientInfo", "accountants", "users"})
+    Optional<Client> findWithInfoAccountantsAndUsersById(UUID id);
 
     @EntityGraph(attributePaths = {"clientInfo", "accountants"})
     Optional<Client> findWithInfoAndAccountantsById(UUID id);
@@ -73,10 +78,7 @@ public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecif
     @EntityGraph(attributePaths = {"createdBy", "clientInfo", "accountants"})
     Optional<Client> findWithInfoCreatorAndAccountantsById(UUID id);
 
-    @EntityGraph(attributePaths = {"clientInfo", "accountants", "user"})
-    Optional<Client> findWithInfoAccountantsAndUserByUserId(UUID userId);
-
-    @Query("SELECT c.id FROM Client c WHERE c.user.id = :userId")
+    @Query("SELECT u.client.id FROM User u WHERE u.id = :userId AND u.client IS NOT NULL")
     Optional<UUID> findClientIdByUserId(@Param("userId") UUID userId);
 
     @EntityGraph(attributePaths = {"accountants"})

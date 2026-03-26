@@ -19,5 +19,7 @@ public record ClientInfoTaskResponse(
         ClientInfoTaskStatus lastReviewStatus,
         List<AccountantListItemResponse> assignedCsdOosAccountants,
         List<AccountantListItemResponse> assignedQtdAccountants,
-        String pocEmail
+        String pocEmail,
+        boolean isProfileApproved,
+        boolean handedOff
 ) {}

@@ -139,26 +139,10 @@ public class ImportantDateService {
     private void extractScopeOfEngagement(ScopeOfEngagementDetails soe, List<ImportantDateResponse> dates) {
         if (soe == null) return;
         addIfImportant(soe.dateOfEngagementLetter(), "Engagement Letter Date", dates);
-
-        if (soe.consultationHours() != null && soe.consultationHours().consultations() != null) {
-            for (ConsultationEntry entry : soe.consultationHours().consultations()) {
-                String label = entry.date() != null && entry.date().date() != null
-                        ? "Consultation (" + entry.date().date() + ")"
-                        : "Consultation";
-                addIfImportant(entry.date(), label, dates);
-            }
-        }
     }
 
     private void extractOnboardingDetails(OnboardingDetails od, List<ImportantDateResponse> dates) {
         if (od == null) return;
         addIfImportant(od.gcCreatedDate(), "Group Chat Created Date", dates);
-
-        if (od.meetings() != null) {
-            for (OnboardingMeetingEntry meeting : od.meetings()) {
-                String title = meeting.titleOfMeeting() != null ? meeting.titleOfMeeting() : "Meeting";
-                addIfImportant(meeting.date(), "Meeting: " + title, dates);
-            }
-        }
     }
 }

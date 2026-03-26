@@ -2,7 +2,6 @@
 CREATE TABLE clients (
     id            UUID PRIMARY KEY,
     version       BIGINT       NOT NULL DEFAULT 0,
-    user_id       UUID REFERENCES users(id),
     status        VARCHAR(255) NOT NULL,
     handed_off    BOOLEAN      NOT NULL DEFAULT FALSE,
     created_by    UUID         NOT NULL REFERENCES users(id),
@@ -12,7 +11,9 @@ CREATE TABLE clients (
 
 CREATE INDEX idx_clients_status     ON clients(status);
 CREATE INDEX idx_clients_created_by ON clients(created_by);
-CREATE INDEX idx_clients_user_id    ON clients(user_id);
+
+-- Add FK from users.client_id -> clients.id (deferred because clients table didn't exist in V1)
+ALTER TABLE users ADD CONSTRAINT fk_users_client_id FOREIGN KEY (client_id) REFERENCES clients(id);
 
 -- Client-Accountant join table
 CREATE TABLE client_accountants (

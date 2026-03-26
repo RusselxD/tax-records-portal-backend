@@ -1,5 +1,6 @@
 package com.taxrecordsportal.tax_records_portal_backend.user_domain.user;
 
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Client;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.employee_position.EmployeePosition;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.Role;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.common.UserTitle;
@@ -36,7 +37,8 @@ import static jakarta.persistence.FetchType.LAZY;
 @Table(name = "users", indexes = {
         @Index(name = "idx_users_email", columnList = "email"),
         @Index(name = "idx_users_role_id", columnList = "role_id"),
-        @Index(name = "idx_users_position_id", columnList = "position_id")
+        @Index(name = "idx_users_position_id", columnList = "position_id"),
+        @Index(name = "idx_users_client_id", columnList = "client_id")
 })
 public class User implements UserDetails { // Spring security interface
 
@@ -72,6 +74,11 @@ public class User implements UserDetails { // Spring security interface
     @JoinColumn(name = "position_id")
     @ToString.Exclude
     private EmployeePosition position;
+
+    @ManyToOne(fetch = LAZY)
+    @JoinColumn(name = "client_id")
+    @ToString.Exclude
+    private Client client;
 
     @Column(name = "titles", columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)

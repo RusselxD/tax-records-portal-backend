@@ -78,17 +78,11 @@ public class ClientInfoTemplateSeeder implements CommandLineRunner {
 
         template.setScopeOfEngagement(new ScopeOfEngagementDetails(
                 emptyDateField(), // dateOfEngagementLetter
-                null,             // engagementLetter
+                List.of(),        // engagementLetters
                 // A. Documents & Information Gathering
                 null, null, null, null, null, null,
                 // B. Client Engagements
-                null, null, null, null, List.of(), null, null, null,
-                new ConsultationHoursDetails(
-                        BigDecimal.valueOf(2),
-                        BigDecimal.valueOf(500),
-                        List.of(),
-                        BigDecimal.ZERO
-                ),
+                null, null, null, List.of(), List.of(), null, null, null, null, null,
                 // C. Required Deliverable & Report
                 null, null
         ));
@@ -110,7 +104,6 @@ public class ClientInfoTemplateSeeder implements CommandLineRunner {
                 null,             // platformUsed
                 null,             // gcCreatedBy
                 emptyDateField(), // gcCreatedDate
-                List.of(),        // meetings
                 List.of()         // pendingActionItems
         ));
 

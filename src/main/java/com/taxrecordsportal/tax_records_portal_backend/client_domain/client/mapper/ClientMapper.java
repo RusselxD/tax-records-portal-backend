@@ -43,8 +43,9 @@ public interface ClientMapper {
     }
 
     default String computeClientEmail(Client client) {
-        if (client.getUser() != null && client.getUser().getEmail() != null) {
-            return client.getUser().getEmail();
+        if (client.getUsers() != null && !client.getUsers().isEmpty()) {
+            String email = client.getUsers().iterator().next().getEmail();
+            if (email != null) return email;
         }
 
         ClientInfo info = client.getClientInfo();

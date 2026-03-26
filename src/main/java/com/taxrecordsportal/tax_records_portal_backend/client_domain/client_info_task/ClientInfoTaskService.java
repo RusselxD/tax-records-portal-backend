@@ -96,13 +96,18 @@ public class ClientInfoTaskService {
         ClientInfoTaskType activeTaskType = hasActiveTask ? latestTask.get().getType() : null;
         ClientInfoTaskStatus lastReviewStatus = latestTask.map(ClientInfoTask::getStatus).orElse(null);
 
-        String pocEmail = client.getUser() != null ? client.getUser().getEmail() : null;
+        String pocEmail = client.getUsers() != null && !client.getUsers().isEmpty()
+                ? client.getUsers().iterator().next().getEmail() : null;
         if (pocEmail == null && info != null) {
             CorporateOfficerInformation coi = info.getCorporateOfficerInformation();
             if (coi != null && coi.pointOfContact() != null) {
                 pocEmail = coi.pointOfContact().emailAddress();
             }
         }
+
+        boolean isProfileApproved = latestTask
+                .map(t -> t.getStatus() == ClientInfoTaskStatus.APPROVED)
+                .orElse(false);
 
         return new ClientInfoTaskResponse(
                 client.getId(),
@@ -115,7 +120,9 @@ public class ClientInfoTaskService {
                 lastReviewStatus,
                 partitioned.get(false),
                 partitioned.get(true),
-                pocEmail
+                pocEmail,
+                isProfileApproved,
+                client.isHandedOff()
         );
     }
 

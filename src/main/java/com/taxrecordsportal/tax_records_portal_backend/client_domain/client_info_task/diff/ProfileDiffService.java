@@ -134,7 +134,7 @@ public class ProfileDiffService {
 
         // Header
         field(changes, "Date of Engagement Letter", fmt(cc.dateOfEngagementLetter()), fmt(ss.dateOfEngagementLetter()));
-        field(changes, "Engagement Letter", fmt(cc.engagementLetter()), fmt(ss.engagementLetter()));
+        field(changes, "Engagement Letters", fmtFiles(cc.engagementLetters()), fmtFiles(ss.engagementLetters()));
 
         // A. Documents & Information Gathering
         field(changes, "Sales Invoices and Documents", fmtRichText(cc.salesInvoicesAndDocuments()), fmtRichText(ss.salesInvoicesAndDocuments()));
@@ -148,7 +148,7 @@ public class ProfileDiffService {
         field(changes, "Tax Compliance", fmtRichText(cc.taxCompliance()), fmtRichText(ss.taxCompliance()));
         field(changes, "Book of Accounts", fmtEnum(cc.bookOfAccounts()), fmtEnum(ss.bookOfAccounts()));
         field(changes, "Bookkeeping Permit No.", fmt(cc.bookkeepingPermitNo()), fmt(ss.bookkeepingPermitNo()));
-        field(changes, "Looseleaf Certificate & BIR Template", fmt(cc.looseleafCertificateAndBirTemplate()), fmt(ss.looseleafCertificateAndBirTemplate()));
+        field(changes, "Looseleaf Certificate & BIR Templates", fmtFiles(cc.looseleafCertificateAndBirTemplates()), fmtFiles(ss.looseleafCertificateAndBirTemplates()));
 
         // Registered Books list
         diffList(changes, safe(cc.registeredBooks()), safe(ss.registeredBooks()),
@@ -159,9 +159,8 @@ public class ProfileDiffService {
         field(changes, "Bookkeeping Process", fmtRichText(cc.bookkeepingProcess()), fmtRichText(ss.bookkeepingProcess()));
         field(changes, "SSS, PhilHealth, HDMF Engagement", fmtRichText(cc.sssPhilhealthHdmfEngagement()), fmtRichText(ss.sssPhilhealthHdmfEngagement()));
         field(changes, "Payment Assistance", fmtRichText(cc.paymentAssistance()), fmtRichText(ss.paymentAssistance()));
-
-        // Consultation Hours
-        diffConsultationHours(changes, cc.consultationHours(), ss.consultationHours());
+        field(changes, "Consultation Free Allowance", fmt(cc.consultationFreeAllowance()), fmt(ss.consultationFreeAllowance()));
+        field(changes, "Consultation Excess Rate", fmt(cc.consultationExcessRate()), fmt(ss.consultationExcessRate()));
 
         // C. Required Deliverable & Report
         field(changes, "Standard Deliverable", fmtRichText(cc.standardDeliverable()), fmtRichText(ss.standardDeliverable()));
@@ -182,20 +181,14 @@ public class ProfileDiffService {
 
     private SectionDiff diffOnboardingDetails(OnboardingDetails c, OnboardingDetails s) {
         if (c == null && s == null) return null;
-        var cc = c != null ? c : new OnboardingDetails(null, null, null, null, null, null);
-        var ss = s != null ? s : new OnboardingDetails(null, null, null, null, null, null);
+        var cc = c != null ? c : new OnboardingDetails(null, null, null, null, null);
+        var ss = s != null ? s : new OnboardingDetails(null, null, null, null, null);
 
         List<ChangeEntry> changes = new ArrayList<>();
         field(changes, "Name of Group Chat", fmt(cc.nameOfGroupChat()), fmt(ss.nameOfGroupChat()));
         field(changes, "Platform Used", fmt(cc.platformUsed()), fmt(ss.platformUsed()));
         field(changes, "GC Created By", fmt(cc.gcCreatedBy()), fmt(ss.gcCreatedBy()));
         field(changes, "GC Created Date", fmt(cc.gcCreatedDate()), fmt(ss.gcCreatedDate()));
-
-        // Meetings list
-        diffList(changes, safe(cc.meetings()), safe(ss.meetings()),
-                OnboardingMeetingEntry::titleOfMeeting,
-                m -> m.titleOfMeeting() != null ? m.titleOfMeeting() : "Meeting",
-                this::compareMeeting, this::listMeeting);
 
         // Pending Action Items list
         diffList(changes, safe(cc.pendingActionItems()), safe(ss.pendingActionItems()),
@@ -315,27 +308,6 @@ public class ProfileDiffService {
         field(changes, "Email Address", fmt(cc.emailAddress()), fmt(ss.emailAddress()));
         field(changes, "Preferred Method of Communication", fmt(cc.preferredMethodOfCommunication()), fmt(ss.preferredMethodOfCommunication()));
         field(changes, "Alternative Contact", fmt(cc.alternativeContact()), fmt(ss.alternativeContact()));
-    }
-
-    private void diffConsultationHours(List<ChangeEntry> changes, ConsultationHoursDetails c, ConsultationHoursDetails s) {
-        var cc = c != null ? c : new ConsultationHoursDetails(null, null, null, null);
-        var ss = s != null ? s : new ConsultationHoursDetails(null, null, null, null);
-        field(changes, "Free Hours per Month", fmt(cc.freeHoursPerMonth()), fmt(ss.freeHoursPerMonth()));
-        field(changes, "Rate per Hour After Free", fmt(cc.ratePerHourAfterFree()), fmt(ss.ratePerHourAfterFree()));
-        field(changes, "Total Billable Amount", fmt(cc.totalBillableAmount()), fmt(ss.totalBillableAmount()));
-
-        diffList(changes, safe(cc.consultations()), safe(ss.consultations()),
-                ce -> {
-                    String d = ce.date() != null && ce.date().date() != null ? ce.date().date().toString() : "";
-                    String p = ce.platform() != null ? ce.platform() : "";
-                    return d + "|" + p;
-                },
-                ce -> {
-                    String d = ce.date() != null && ce.date().date() != null ? ce.date().date().toString() : "";
-                    String p = ce.platform() != null ? ce.platform() : "";
-                    return !d.isEmpty() ? d + (p.isEmpty() ? "" : " - " + p) : "Consultation";
-                },
-                this::compareConsultation, this::listConsultation);
     }
 
     // ── Generic List Differ ─────────────────────────────────────────────────
@@ -580,56 +552,6 @@ public class ProfileDiffService {
         return listNonNull(fv("Book Name", fmt(rb.bookName())), fv("Notes", fmt(rb.notes())));
     }
 
-    private List<FieldDiff> compareMeeting(OnboardingMeetingEntry c, OnboardingMeetingEntry s) {
-        List<FieldDiff> d = new ArrayList<>();
-        diff(d, "Title of Meeting", fmt(c.titleOfMeeting()), fmt(s.titleOfMeeting()));
-        diff(d, "Date", fmt(c.date()), fmt(s.date()));
-        diff(d, "Time Started", fmt(c.timeStarted()), fmt(s.timeStarted()));
-        diff(d, "Time Ended", fmt(c.timeEnded()), fmt(s.timeEnded()));
-        diff(d, "Agenda", fmt(c.agenda()), fmt(s.agenda()));
-        diff(d, "Link to Meeting Recording", fmt(c.linkToMeetingRecording()), fmt(s.linkToMeetingRecording()));
-        diff(d, "Minutes", fmtRichText(c.minutes()), fmtRichText(s.minutes()));
-        return d;
-    }
-
-    private List<FieldValue> listMeeting(OnboardingMeetingEntry m) {
-        return listNonNull(
-                fv("Title of Meeting", fmt(m.titleOfMeeting())),
-                fv("Date", fmt(m.date())),
-                fv("Time Started", fmt(m.timeStarted())),
-                fv("Time Ended", fmt(m.timeEnded())),
-                fv("Agenda", fmt(m.agenda())),
-                fv("Link to Meeting Recording", fmt(m.linkToMeetingRecording())),
-                fv("Minutes", fmtRichText(m.minutes()))
-        );
-    }
-
-    private List<FieldDiff> compareConsultation(ConsultationEntry c, ConsultationEntry s) {
-        List<FieldDiff> d = new ArrayList<>();
-        diff(d, "Date", fmt(c.date()), fmt(s.date()));
-        diff(d, "Time Started", fmt(c.timeStarted()), fmt(s.timeStarted()));
-        diff(d, "Time Ended", fmt(c.timeEnded()), fmt(s.timeEnded()));
-        diff(d, "Topics and Documentation", fmtRichText(c.topicsAndDocumentation()), fmtRichText(s.topicsAndDocumentation()));
-        diff(d, "Number of Hours", fmt(c.numberOfHours()), fmt(s.numberOfHours()));
-        diff(d, "Platform", fmt(c.platform()), fmt(s.platform()));
-        diff(d, "Amount", fmt(c.amount()), fmt(s.amount()));
-        diff(d, "VAT", fmt(c.vat()), fmt(s.vat()));
-        return d;
-    }
-
-    private List<FieldValue> listConsultation(ConsultationEntry ce) {
-        return listNonNull(
-                fv("Date", fmt(ce.date())),
-                fv("Time Started", fmt(ce.timeStarted())),
-                fv("Time Ended", fmt(ce.timeEnded())),
-                fv("Topics and Documentation", fmtRichText(ce.topicsAndDocumentation())),
-                fv("Number of Hours", fmt(ce.numberOfHours())),
-                fv("Platform", fmt(ce.platform())),
-                fv("Amount", fmt(ce.amount())),
-                fv("VAT", fmt(ce.vat()))
-        );
-    }
-
     private List<FieldDiff> compareActionItem(PendingActionItem c, PendingActionItem s) {
         List<FieldDiff> d = new ArrayList<>();
         diff(d, "Particulars", fmt(c.particulars()), fmt(s.particulars()));
@@ -663,6 +585,11 @@ public class ProfileDiffService {
     private String fmt(FileReference val) {
         if (val == null) return null;
         return val.name();
+    }
+
+    private String fmtFiles(List<FileReference> val) {
+        if (val == null || val.isEmpty()) return null;
+        return String.join(", ", val.stream().map(FileReference::name).toList());
     }
 
     private String fmt(LinkReference val) {
@@ -758,6 +685,6 @@ public class ProfileDiffService {
     }
 
     private ScopeOfEngagementDetails emptyScopeOfEngagement() {
-        return new ScopeOfEngagementDetails(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        return new ScopeOfEngagementDetails(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

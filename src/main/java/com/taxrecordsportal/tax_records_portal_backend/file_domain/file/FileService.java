@@ -106,7 +106,7 @@ public class FileService {
     }
 
     private Client getAccessibleClient(UUID clientId) {
-        Client client = clientRepository.findWithCreatorAccountantsAndUserById(clientId)
+        Client client = clientRepository.findWithCreatorAccountantsAndUsersById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
         enforceClientAccess(client);
         return client;
@@ -124,8 +124,8 @@ public class FileService {
                     && client.getCreatedBy().getId().equals(currentUser.getId());
             boolean isAssignedAccountant = client.getAccountants() != null
                     && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
-            boolean isClient = client.getUser() != null
-                    && client.getUser().getId().equals(currentUser.getId());
+            boolean isClient = client.getUsers() != null
+                    && client.getUsers().stream().anyMatch(u -> u.getId().equals(currentUser.getId()));
 
             if (!isCreator && !isAssignedAccountant && !isClient) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this client's files");

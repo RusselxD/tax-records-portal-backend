@@ -14,6 +14,6 @@ public interface FileRepository extends JpaRepository<FileEntity, UUID> {
     @Query("DELETE FROM FileEntity f WHERE f.client.id = :clientId")
     void deleteAllByClientId(@Param("clientId") UUID clientId);
 
-    @EntityGraph(attributePaths = {"client", "client.createdBy", "client.accountants", "client.user"})
+    @EntityGraph(attributePaths = {"client", "client.createdBy", "client.accountants", "client.users"})
     Optional<FileEntity> findWithClientById(UUID id);
 }

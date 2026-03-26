@@ -74,7 +74,7 @@ public interface ClientInfoTaskRepository extends JpaRepository<ClientInfoTask, 
     @EntityGraph(attributePaths = {"submittedBy"})
     Optional<ClientInfoTask> findWithSubmitterById(UUID taskId);
 
-    @EntityGraph(attributePaths = {"client", "client.clientInfo", "client.accountants", "client.accountants.role", "client.user", "submittedBy"})
+    @EntityGraph(attributePaths = {"client", "client.clientInfo", "client.accountants", "client.accountants.role", "client.users", "submittedBy"})
     Optional<ClientInfoTask> findWithFullClientDetailsById(UUID taskId);
 
     @EntityGraph(attributePaths = {"client", "client.accountants", "client.accountants.role"})

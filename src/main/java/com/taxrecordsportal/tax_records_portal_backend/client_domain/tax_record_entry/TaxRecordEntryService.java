@@ -38,12 +38,12 @@ public class TaxRecordEntryService {
                 .anyMatch(a -> Objects.equals(a.getAuthority(), "tax_records.view.all"));
 
         if (!hasViewAll) {
-            Client client = clientRepository.findWithAccountantsAndUserById(clientId)
+            Client client = clientRepository.findWithAccountantsAndUsersById(clientId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
             boolean isAssigned = client.getAccountants() != null
                     && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
-            boolean isClient = client.getUser() != null
-                    && client.getUser().getId().equals(currentUser.getId());
+            boolean isClient = client.getUsers() != null
+                    && client.getUsers().stream().anyMatch(u -> u.getId().equals(currentUser.getId()));
             if (!isAssigned && !isClient) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this client's tax records");
             }

@@ -27,8 +27,7 @@ import static jakarta.persistence.FetchType.LAZY;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "clients", indexes = {
         @Index(name = "idx_clients_status", columnList = "status"),
-        @Index(name = "idx_clients_created_by", columnList = "created_by"),
-        @Index(name = "idx_clients_user_id", columnList = "user_id")
+        @Index(name = "idx_clients_created_by", columnList = "created_by")
 })
 public class Client {
 
@@ -40,9 +39,9 @@ public class Client {
     @Version
     private Long version;
 
-    @OneToOne(fetch = LAZY)
-    @JoinColumn(name = "user_id")
-    private User user;
+    @OneToMany(mappedBy = "client", fetch = LAZY)
+    @BatchSize(size = 20)
+    private Set<User> users;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

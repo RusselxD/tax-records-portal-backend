@@ -3,6 +3,7 @@ package com.taxrecordsportal.tax_records_portal_backend.client_domain.client_inf
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,19 +33,19 @@ public interface ClientInfoRepository extends JpaRepository<ClientInfo, UUID> {
     String findOnboardingDetailsByClientId(UUID clientId);
 
     @Query(value = """
-            SELECT (ci.scope_of_engagement -> 'engagementLetter') IS NOT NULL
-              AND (ci.scope_of_engagement -> 'engagementLetter') != 'null'::jsonb
+            SELECT (ci.scope_of_engagement -> 'engagementLetters') IS NOT NULL
+              AND jsonb_array_length(COALESCE(ci.scope_of_engagement -> 'engagementLetters', '[]'::jsonb)) > 0
             FROM client_info ci
-            JOIN clients c ON c.id = ci.client_id
-            WHERE c.user_id = :userId
+            JOIN users u ON u.client_id = ci.client_id
+            WHERE u.id = :userId
             """, nativeQuery = true)
     Optional<Boolean> existsEngagementLetterByUserId(UUID userId);
 
     @Query(value = """
-            SELECT ci.scope_of_engagement -> 'engagementLetter' ->> 'id'
+            SELECT jsonb_array_elements(ci.scope_of_engagement -> 'engagementLetters') ->> 'id'
             FROM client_info ci
-            JOIN clients c ON c.id = ci.client_id
-            WHERE c.user_id = :userId
+            JOIN users u ON u.client_id = ci.client_id
+            WHERE u.id = :userId
             """, nativeQuery = true)
-    Optional<String> findEngagementLetterFileIdByUserId(UUID userId);
+    List<String> findEngagementLetterFileIdsByUserId(UUID userId);
 }

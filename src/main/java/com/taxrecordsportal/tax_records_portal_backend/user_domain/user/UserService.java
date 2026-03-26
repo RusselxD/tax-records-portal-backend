@@ -122,12 +122,12 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public ClientAccountResponse getClientAccount(UUID clientId) {
+    public List<ClientAccountResponse> getClientAccounts(UUID clientId) {
         User currentUser = getCurrentUser();
         boolean hasViewAll = currentUser.getAuthorities().stream()
                 .anyMatch(a -> Objects.equals(a.getAuthority(), "client.view.all"));
 
-        Client client = clientRepository.findWithCreatorAccountantsAndUserById(clientId)
+        Client client = clientRepository.findWithCreatorAccountantsAndUsersById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
 
         if (!hasViewAll
@@ -136,12 +136,13 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this client");
         }
 
-        User user = client.getUser();
-        if (user == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Client does not have an account");
+        if (client.getUsers() == null || client.getUsers().isEmpty()) {
+            return List.of();
         }
 
-        return userMapper.toClientAccountResponse(user);
+        return client.getUsers().stream()
+                .map(userMapper::toClientAccountResponse)
+                .toList();
     }
 
     @Transactional

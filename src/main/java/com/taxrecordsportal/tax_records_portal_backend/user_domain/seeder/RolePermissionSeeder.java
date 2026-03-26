@@ -57,6 +57,7 @@ public class RolePermissionSeeder implements CommandLineRunner {
         ensurePermission("tax_task_category.manage", "Manage tax task categories, sub-categories, and task names");
         ensurePermission("client_notice.manage", "Create, edit, delete notices on a client's dashboard");
         ensurePermission("billing.manage", "Send and update amount due, due dates, and invoice files to a client");
+        ensurePermission("billing.view.own", "View own invoices and payment history");
         ensurePermission("document.upload", "Upload documents to the system");
         ensurePermission("reminder.create", "Set manual reminders for filing deadlines and unpaid balances");
         ensurePermission("notification.receive", "Receive in-app notifications");
@@ -136,10 +137,12 @@ public class RolePermissionSeeder implements CommandLineRunner {
         // Internal Accounting / Billing
         assignPermission(RoleKey.BILLING, "client_info.view.all");
         assignPermission(RoleKey.BILLING, "billing.manage");
+        assignPermission(RoleKey.BILLING, "document.upload");
         assignPermission(RoleKey.BILLING, "notification.receive");
 
         // Client
         assignPermission(RoleKey.CLIENT, "client_info.view.own");
+        assignPermission(RoleKey.CLIENT, "billing.view.own");
         assignPermission(RoleKey.CLIENT, "notification.receive");
     }
 

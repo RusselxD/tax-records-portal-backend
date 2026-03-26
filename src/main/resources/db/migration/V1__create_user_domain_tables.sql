@@ -25,7 +25,7 @@ CREATE TABLE employee_positions (
     name VARCHAR(255) NOT NULL UNIQUE
 );
 
--- Users
+-- Users (client_id FK added after clients table is created in V2)
 CREATE TABLE users (
     id            UUID PRIMARY KEY,
     role_id       INT          NOT NULL REFERENCES roles(id),
@@ -35,6 +35,7 @@ CREATE TABLE users (
     profile_url   VARCHAR(255),
     password_hash VARCHAR(255),
     position_id   INT REFERENCES employee_positions(id),
+    client_id     UUID,
     titles        JSONB,
     status        VARCHAR(255) NOT NULL,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
@@ -43,6 +44,7 @@ CREATE TABLE users (
 CREATE INDEX idx_users_email       ON users(email);
 CREATE INDEX idx_users_role_id     ON users(role_id);
 CREATE INDEX idx_users_position_id ON users(position_id);
+CREATE INDEX idx_users_client_id   ON users(client_id);
 
 -- User tokens
 CREATE TABLE user_tokens (

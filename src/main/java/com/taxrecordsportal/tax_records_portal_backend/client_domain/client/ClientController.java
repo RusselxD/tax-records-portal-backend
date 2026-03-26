@@ -8,14 +8,8 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.ClientInfoTaskService;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ArchiveSnapshotResponse;
-import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileEntity;
-import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.Resource;
-import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +25,6 @@ public class ClientController {
 
     private final ClientService clientService;
     private final ClientInfoTaskService clientInfoTaskService;
-    private final FileService fileService;
 
     @GetMapping
     @PreAuthorize("hasAuthority('client.view.all') or hasAuthority('client.view.own')")
@@ -59,7 +52,7 @@ public class ClientController {
     }
 
     @GetMapping("/active")
-    @PreAuthorize("hasAuthority('task.create') or hasAuthority('task.view.own')")
+    @PreAuthorize("hasAuthority('task.create') or hasAuthority('task.view.own') or hasAuthority('billing.manage')")
     public ResponseEntity<List<ClientLookupResponse>> getActiveClients() {
         return ResponseEntity.ok(clientService.getActiveClients());
     }
@@ -91,16 +84,9 @@ public class ClientController {
         return ResponseEntity.ok(Map.of("exists", clientService.hasEngagementLetter()));
     }
 
-    @GetMapping("/me/engagement-letter")
-    public ResponseEntity<Resource> downloadEngagementLetter() {
-        UUID fileId = clientService.getEngagementLetterFileId();
-        FileEntity fileEntity = fileService.getFileEntity(fileId);
-        Resource resource = fileService.previewById(fileId);
-        String contentType = fileService.resolveMediaType(fileEntity.getName());
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.builder("inline").filename(fileEntity.getName()).build().toString())
-                .body(resource);
+    @GetMapping("/me/engagement-letters")
+    public ResponseEntity<List<UUID>> getEngagementLetterFileIds() {
+        return ResponseEntity.ok(clientService.getEngagementLetterFileIds());
     }
 
     @GetMapping("/{clientId}/summary")

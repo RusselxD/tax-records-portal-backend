@@ -354,7 +354,7 @@ public class ClientService {
 
     @Transactional
     public void handoffClient(UUID clientId) {
-        Client client = clientRepository.findWithInfoAccountantsAndUserById(clientId)
+        Client client = clientRepository.findWithInfoAccountantsAndUsersById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
 
         if (client.getAccountants() == null || client.getAccountants().isEmpty()) {
@@ -362,6 +362,7 @@ public class ClientService {
         }
 
         client.setHandedOff(true);
+        client.setStatus(ClientStatus.ACTIVE_CLIENT);
         clientRepository.save(client);
 
         String clientName = clientMapper.computeClientName(client);
@@ -387,10 +388,6 @@ public class ClientService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
 
-        if (client.getUser() != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Client already has an account");
-        }
-
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
         }
@@ -404,10 +401,8 @@ public class ClientService {
         user.setEmail(request.email());
         user.setRole(clientRole);
         user.setStatus(UserStatus.PENDING);
+        user.setClient(client);
         User savedUser = userRepository.save(user);
-
-        client.setUser(savedUser);
-        clientRepository.save(client);
 
         UserToken activationToken = new UserToken();
         activationToken.setUser(savedUser);
@@ -551,7 +546,8 @@ public class ClientService {
         ClientInfoTaskType activeTaskType = hasActiveTask ? latestProfileUpdate.get().getType() : null;
         ClientInfoTaskStatus lastReviewStatus = latestProfileUpdate.map(ClientInfoTask::getStatus).orElse(null);
 
-        String pocEmail = client.getUser() != null ? client.getUser().getEmail() : null;
+        String pocEmail = client.getUsers() != null && !client.getUsers().isEmpty()
+                ? client.getUsers().iterator().next().getEmail() : null;
         if (pocEmail == null) {
             CorporateOfficerInformation coi = info.getCorporateOfficerInformation();
             if (coi != null && coi.pointOfContact() != null) {
@@ -600,7 +596,9 @@ public class ClientService {
     @Transactional(readOnly = true)
     public ClientInfoHeaderResponse getMyClientInfoHeader() {
         UUID userId = getCurrentUser().getId();
-        Client client = clientRepository.findWithInfoAccountantsAndUserByUserId(userId)
+        UUID clientId = clientRepository.findClientIdByUserId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+        Client client = clientRepository.findWithInfoAccountantsAndUsersById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
         ClientInfo info = requireClientInfo(client);
         return buildClientInfoHeaderResponse(client, info);
@@ -637,14 +635,13 @@ public class ClientService {
     }
 
     @Transactional(readOnly = true)
-    public UUID getEngagementLetterFileId() {
+    public List<UUID> getEngagementLetterFileIds() {
         UUID userId = getCurrentUser().getId();
-        String fileId = clientInfoRepository.findEngagementLetterFileIdByUserId(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
-        if (fileId == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No engagement letter uploaded");
+        List<String> fileIds = clientInfoRepository.findEngagementLetterFileIdsByUserId(userId);
+        if (fileIds == null || fileIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No engagement letters uploaded");
         }
-        return UUID.fromString(fileId);
+        return fileIds.stream().map(UUID::fromString).toList();
     }
 
     @Transactional

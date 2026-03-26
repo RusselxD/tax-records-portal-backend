@@ -65,8 +65,8 @@ public class UserController {
 
     @GetMapping("/client/{clientId}")
     @PreAuthorize("hasAuthority('client.view.own') or hasAuthority('client.view.all')")
-    public ResponseEntity<ClientAccountResponse> getClientAccount(@PathVariable UUID clientId) {
-        return ResponseEntity.ok(userService.getClientAccount(clientId));
+    public ResponseEntity<List<ClientAccountResponse>> getClientAccounts(@PathVariable UUID clientId) {
+        return ResponseEntity.ok(userService.getClientAccounts(clientId));
     }
 
     @PostMapping("/{id}/resend-activation")
