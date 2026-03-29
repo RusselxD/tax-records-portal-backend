@@ -24,14 +24,12 @@ public class InvoiceMapper {
                 clientName,
                 invoice.getInvoiceNumber(),
                 invoice.getInvoiceDate(),
-                invoice.getTerms().getName(),
                 invoice.getDueDate(),
-                invoice.getDescription(),
-                invoice.getAmountDue(),
                 balance,
                 invoice.getStatus(),
                 invoice.isEmailSent(),
-                hasEmailRecipients
+                hasEmailRecipients,
+                computeIsOverdue(invoice)
         );
     }
 
@@ -95,16 +93,13 @@ public class InvoiceMapper {
                 invoice.getDueDate(),
                 invoice.getAmountDue(),
                 balance,
-                invoice.getStatus()
+                invoice.getStatus(),
+                computeIsOverdue(invoice)
         );
     }
 
     public ClientInvoiceListItemResponse toClientListItem(Invoice invoice) {
         BigDecimal balance = computeBalance(invoice);
-        boolean isOverdue = !invoice.isVoided()
-                && (invoice.getStatus() == InvoiceStatus.UNPAID || invoice.getStatus() == InvoiceStatus.PARTIALLY_PAID)
-                && invoice.getDueDate() != null
-                && !invoice.getDueDate().isAfter(LocalDate.now());
         return new ClientInvoiceListItemResponse(
                 invoice.getId(),
                 invoice.getInvoiceNumber(),
@@ -114,8 +109,27 @@ public class InvoiceMapper {
                 invoice.getAmountDue(),
                 balance,
                 invoice.getStatus(),
-                isOverdue
+                computeIsOverdue(invoice)
         );
+    }
+
+    public ClientInvoiceSidebarItem toSidebarItem(Invoice invoice) {
+        BigDecimal balance = computeBalance(invoice);
+        return new ClientInvoiceSidebarItem(
+                invoice.getId(),
+                invoice.getInvoiceNumber(),
+                invoice.getInvoiceDate(),
+                invoice.getDueDate(),
+                invoice.getAmountDue(),
+                balance,
+                invoice.getStatus(),
+                computeIsOverdue(invoice)
+        );
+    }
+
+    private boolean computeIsOverdue(Invoice invoice) {
+        if (invoice.getStatus() == InvoiceStatus.VOID || invoice.getStatus() == InvoiceStatus.FULLY_PAID) return false;
+        return invoice.getDueDate() != null && !invoice.getDueDate().isAfter(LocalDate.now());
     }
 
     private BigDecimal computeBalance(Invoice invoice) {

@@ -32,68 +32,65 @@ public class RolePermissionSeeder implements CommandLineRunner {
         roleRepository.findAll().forEach(r -> roleCache.put(r.getKey(), r));
 
         // Permissions
-        ensurePermission("user.create", "Create internal user accounts");
-        ensurePermission("user.view.all", "View all internal user accounts");
-        ensurePermission("user.deactivate", "Deactivate internal user accounts");
-        ensurePermission("client.create", "Create a client account and initiate onboarding");
-        ensurePermission("client.view.own", "View only clients you onboarded or are assigned to");
-        ensurePermission("client.view.all", "View all clients across the system");
-        ensurePermission("client.view.archived", "View archived clients");
-        ensurePermission("client.assign", "Formally assign an approved client to a CSD accountant");
-        ensurePermission("client.reassign", "Modify which CSD accountants are assigned to a client post-handoff");
-        ensurePermission("client_info.create", "Encode and submit a client's onboarding profile");
-        ensurePermission("client_info.edit", "Edit a client profile (corrections after QTD rejection)");
-        ensurePermission("client_info.review", "Approve or reject a submitted client profile");
-        ensurePermission("client_info.view.own", "View client info for your own onboarded/assigned clients only");
-        ensurePermission("client_info.view.all", "View all client info across the system");
-        ensurePermission("client_info_template.manage", "Define and edit the global client onboarding field structure");
-        ensurePermission("tax_records.view.own", "View tax records for assigned clients only");
-        ensurePermission("tax_records.view.all", "View all tax records across the system");
-        ensurePermission("task.create", "Create tasks and assign them to CSD accountants");
-        ensurePermission("task.view.own", "View only tasks assigned to you");
-        ensurePermission("task.view.all", "View all tasks across the system");
-        ensurePermission("task.execute", "Upload draft and mark a task as complete");
-        ensurePermission("task.review", "Approve or reject a submitted task");
-        ensurePermission("tax_task_category.manage", "Manage tax task categories, sub-categories, and task names");
-        ensurePermission("client_notice.manage", "Create, edit, delete notices on a client's dashboard");
-        ensurePermission("billing.manage", "Send and update amount due, due dates, and invoice files to a client");
-        ensurePermission("billing.view.own", "View own invoices and payment history");
-        ensurePermission("document.upload", "Upload documents to the system");
-        ensurePermission("reminder.create", "Set manual reminders for filing deadlines and unpaid balances");
-        ensurePermission("notification.receive", "Receive in-app notifications");
-        ensurePermission("analytics.view.own", "View analytics for your own assigned/onboarded clients");
-        ensurePermission("analytics.view.all", "View all analytics across the system");
-        ensurePermission("analytics.system.view", "View system-wide analytics dashboard");
-        ensurePermission("client.manage", "Change client status (Onboarding, Active Client, Offboarding, Inactive Client)");
+        ensurePermission("user.create");
+        ensurePermission("user.view.all");
+        ensurePermission("client.create");
+        ensurePermission("client.view.own");
+        ensurePermission("client.view.all");
+        ensurePermission("client.assign");
+        ensurePermission("client.reassign");
+        ensurePermission("client_info.create");
+        ensurePermission("client_info.edit");
+        ensurePermission("client_info.review");
+        ensurePermission("client_info.view.own");
+        ensurePermission("client_info.view.all");
+        ensurePermission("tax_records.view.own");
+        ensurePermission("tax_records.view.all");
+        ensurePermission("task.create");
+        ensurePermission("task.view.own");
+        ensurePermission("task.view.all");
+        ensurePermission("task.execute");
+        ensurePermission("task.review");
+        ensurePermission("billing.manage");
+        ensurePermission("billing.view.own");
+        ensurePermission("document.upload");
+        ensurePermission("reminder.create");
+        ensurePermission("notification.receive");
+        ensurePermission("analytics.system.view");
+        ensurePermission("client.manage");
+        ensurePermission("consultation.create");
+        ensurePermission("consultation.view.own");
+        ensurePermission("consultation.view.all");
+        ensurePermission("consultation.review");
+        ensurePermission("consultation.config.manage");
+        ensurePermission("consultation.view.own.client");
 
         // Role-Permission assignments
         // Manager
         assignPermission(RoleKey.MANAGER, "user.create");
         assignPermission(RoleKey.MANAGER, "user.view.all");
-        assignPermission(RoleKey.MANAGER, "user.deactivate");
         assignPermission(RoleKey.MANAGER, "client.create");
         assignPermission(RoleKey.MANAGER, "client.view.all");
-        assignPermission(RoleKey.MANAGER, "client.view.archived");
         assignPermission(RoleKey.MANAGER, "client.assign");
         assignPermission(RoleKey.MANAGER, "client.reassign");
         assignPermission(RoleKey.MANAGER, "client_info.create");
         assignPermission(RoleKey.MANAGER, "client_info.edit");
         assignPermission(RoleKey.MANAGER, "client_info.review");
         assignPermission(RoleKey.MANAGER, "client_info.view.all");
-        assignPermission(RoleKey.MANAGER, "client_info_template.manage");
         assignPermission(RoleKey.MANAGER, "tax_records.view.all");
         assignPermission(RoleKey.MANAGER, "task.create");
         assignPermission(RoleKey.MANAGER, "task.view.all");
         assignPermission(RoleKey.MANAGER, "task.review");
-        assignPermission(RoleKey.MANAGER, "tax_task_category.manage");
-        assignPermission(RoleKey.MANAGER, "client_notice.manage");
         assignPermission(RoleKey.MANAGER, "billing.manage");
         assignPermission(RoleKey.MANAGER, "document.upload");
         assignPermission(RoleKey.MANAGER, "reminder.create");
         assignPermission(RoleKey.MANAGER, "notification.receive");
-        assignPermission(RoleKey.MANAGER, "analytics.view.all");
         assignPermission(RoleKey.MANAGER, "analytics.system.view");
         assignPermission(RoleKey.MANAGER, "client.manage");
+        assignPermission(RoleKey.MANAGER, "consultation.create");
+        assignPermission(RoleKey.MANAGER, "consultation.view.all");
+        assignPermission(RoleKey.MANAGER, "consultation.review");
+        assignPermission(RoleKey.MANAGER, "consultation.config.manage");
 
         // Onboarding, Offboarding & Support
         assignPermission(RoleKey.OOS, "client.create");
@@ -103,11 +100,13 @@ public class RolePermissionSeeder implements CommandLineRunner {
         assignPermission(RoleKey.OOS, "client_info.view.own");
         assignPermission(RoleKey.OOS, "task.view.own");
         assignPermission(RoleKey.OOS, "task.execute");
-        assignPermission(RoleKey.OOS, "client_notice.manage");
         assignPermission(RoleKey.OOS, "document.upload");
         assignPermission(RoleKey.OOS, "notification.receive");
         assignPermission(RoleKey.OOS, "client.assign");
-        assignPermission(RoleKey.OOS, "analytics.view.own");
+        assignPermission(RoleKey.OOS, "tax_records.view.own");
+        assignPermission(RoleKey.OOS, "consultation.create");
+        assignPermission(RoleKey.OOS, "consultation.view.own");
+        assignPermission(RoleKey.OOS, "consultation.config.manage");
 
         // Quality, Training & Development
         assignPermission(RoleKey.QTD, "client.view.own");
@@ -117,9 +116,9 @@ public class RolePermissionSeeder implements CommandLineRunner {
         assignPermission(RoleKey.QTD, "task.create");
         assignPermission(RoleKey.QTD, "task.view.own");
         assignPermission(RoleKey.QTD, "task.review");
-        assignPermission(RoleKey.QTD, "tax_task_category.manage");
         assignPermission(RoleKey.QTD, "notification.receive");
-        assignPermission(RoleKey.QTD, "analytics.view.own");
+        assignPermission(RoleKey.QTD, "consultation.view.own");
+        assignPermission(RoleKey.QTD, "consultation.review");
 
         // Client Service Delivery
         assignPermission(RoleKey.CSD, "client.view.own");
@@ -128,11 +127,12 @@ public class RolePermissionSeeder implements CommandLineRunner {
         assignPermission(RoleKey.CSD, "tax_records.view.own");
         assignPermission(RoleKey.CSD, "task.view.own");
         assignPermission(RoleKey.CSD, "task.execute");
-        assignPermission(RoleKey.CSD, "client_notice.manage");
         assignPermission(RoleKey.CSD, "document.upload");
         assignPermission(RoleKey.CSD, "reminder.create");
         assignPermission(RoleKey.CSD, "notification.receive");
-        assignPermission(RoleKey.CSD, "analytics.view.own");
+        assignPermission(RoleKey.CSD, "consultation.create");
+        assignPermission(RoleKey.CSD, "consultation.view.own");
+        assignPermission(RoleKey.CSD, "consultation.config.manage");
 
         // Internal Accounting / Billing
         assignPermission(RoleKey.BILLING, "client_info.view.all");
@@ -144,15 +144,15 @@ public class RolePermissionSeeder implements CommandLineRunner {
         assignPermission(RoleKey.CLIENT, "client_info.view.own");
         assignPermission(RoleKey.CLIENT, "billing.view.own");
         assignPermission(RoleKey.CLIENT, "notification.receive");
+        assignPermission(RoleKey.CLIENT, "consultation.view.own.client");
     }
 
-    private void ensurePermission(String name, String description) {
+    private void ensurePermission(String name) {
         if (permissionCache.containsKey(name)) {
             return;
         }
         Permission permission = new Permission();
         permission.setName(name);
-        permission.setDescription(description);
         permissionCache.put(name, permissionRepository.save(permission));
     }
 

@@ -76,7 +76,7 @@ public class BulkTaskCreateService {
                 .stream().collect(Collectors.toMap(Client::getId, Function.identity()));
 
         Map<UUID, User> accountantMap = userRepository
-                .findAllById(rows.stream().map(BulkTaskRowRequest::assignedToId).distinct().toList())
+                .findAllByIdsWithRole(rows.stream().map(BulkTaskRowRequest::assignedToId).distinct().toList())
                 .stream().collect(Collectors.toMap(User::getId, Function.identity()));
 
         // Step 2: Per-row validation

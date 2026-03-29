@@ -16,6 +16,7 @@ import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.resp
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,8 +35,12 @@ public class UserController {
 
     @GetMapping()
     @PreAuthorize("hasAuthority('user.view.all')")
-    public ResponseEntity<List<UserListItemResponse>> getAllEmployees(){
-        return ResponseEntity.ok(userService.getAllEmployees());
+    public ResponseEntity<List<UserListItemResponse>> getAllEmployees(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) RoleKey roleKey,
+            @RequestParam(required = false) UserStatus status,
+            @RequestParam(required = false) String position) {
+        return ResponseEntity.ok(userService.getAllEmployees(search, roleKey, status, position));
     }
 
     @PostMapping()
@@ -43,7 +48,7 @@ public class UserController {
     public ResponseEntity<UserListItemResponse> createEmployee(
             @Valid @RequestBody UserCreateRequest request
             ){
-        return ResponseEntity.ok(userService.createEmployee(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.createEmployee(request));
     }
 
     @PatchMapping("/{userId}")

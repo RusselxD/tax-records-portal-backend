@@ -38,7 +38,7 @@ public class FileEntity {
     private String url;
 
     @ManyToOne(fetch = LAZY)
-    @JoinColumn(name = "client_id", nullable = false)
+    @JoinColumn(name = "client_id")
     private Client client;
 
     @ManyToOne(fetch = LAZY)

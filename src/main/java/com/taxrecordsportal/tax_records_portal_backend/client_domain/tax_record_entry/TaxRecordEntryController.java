@@ -34,6 +34,20 @@ public class TaxRecordEntryController {
         return ResponseEntity.ok(taxRecordEntryService.getByClientId(clientId));
     }
 
+    @GetMapping("/tax-records/client/{clientId}/drill-down")
+    @PreAuthorize("hasAuthority('tax_records.view.own') or hasAuthority('tax_records.view.all')")
+    public ResponseEntity<DrillDownResponse> clientDrillDown(
+            @PathVariable UUID clientId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer subCategoryId,
+            @RequestParam(required = false) Integer taskNameId,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Period period) {
+
+        taxRecordEntryService.enforceClientAccess(clientId);
+        return ResponseEntity.ok(taxRecordEntryService.drillDown(clientId, categoryId, subCategoryId, taskNameId, year, period));
+    }
+
     @GetMapping("/tax-records/me/drill-down")
     public ResponseEntity<DrillDownResponse> drillDown(
             @RequestParam(required = false) Integer categoryId,
@@ -46,7 +60,9 @@ public class TaxRecordEntryController {
         UUID clientId = clientRepository.findClientIdByUserId(currentUser.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
 
-        return ResponseEntity.ok(taxRecordEntryService.drillDown(clientId, categoryId, subCategoryId, taskNameId, year, period));
+        DrillDownResponse response = taxRecordEntryService.drillDown(clientId, categoryId, subCategoryId, taskNameId, year, period);
+        boolean taxRecordsProtected = clientRepository.isTaxRecordsProtected(clientId);
+        return ResponseEntity.ok(response.withTaxRecordsProtected(taxRecordsProtected));
     }
 
     @GetMapping("/tax-records/me/recent")

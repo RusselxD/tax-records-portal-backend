@@ -10,5 +10,5 @@ public record TaxRecordTaskFilesResponse(
         FileItem outputFile,
         FileItem proofOfFilingFile
 ) {
-    public record FileItem(UUID id, String name, String url) {}
+    public record FileItem(UUID id, String name) {}
 }

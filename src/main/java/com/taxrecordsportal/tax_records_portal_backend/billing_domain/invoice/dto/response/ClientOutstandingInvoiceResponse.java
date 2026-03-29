@@ -12,5 +12,6 @@ public record ClientOutstandingInvoiceResponse(
         LocalDate dueDate,
         BigDecimal amountDue,
         BigDecimal balance,
-        InvoiceStatus status
+        InvoiceStatus status,
+        boolean isOverdue
 ) {}

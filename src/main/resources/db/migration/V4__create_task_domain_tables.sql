@@ -31,10 +31,10 @@ CREATE TABLE tax_record_tasks (
     sub_category_id         INT          NOT NULL REFERENCES tax_task_sub_categories(id),
     task_name_id            INT          NOT NULL REFERENCES tax_task_names(id),
     year                    INT          NOT NULL,
-    period                  VARCHAR(255) NOT NULL,
+    period                  VARCHAR(50)  NOT NULL CHECK (period IN ('JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','Q1','Q2','Q3','Q4','ANNUALLY')),
     description             TEXT,
     deadline                TIMESTAMPTZ  NOT NULL,
-    status                  VARCHAR(255) NOT NULL,
+    status                  VARCHAR(50)  NOT NULL CHECK (status IN ('OPEN', 'SUBMITTED', 'REJECTED', 'APPROVED_FOR_FILING', 'FILED', 'COMPLETED')),
     working_files           JSONB        NOT NULL DEFAULT '[]',
     output_file_id          UUID REFERENCES files(id),
     proof_of_filing_file_id UUID REFERENCES files(id),
@@ -66,8 +66,8 @@ CREATE INDEX idx_task_accountants_user_id ON tax_record_task_accountants(user_id
 CREATE TABLE tax_record_task_logs (
     id           UUID PRIMARY KEY,
     task_id      UUID         NOT NULL REFERENCES tax_record_tasks(id),
-    action       VARCHAR(255) NOT NULL,
-    comment      TEXT,
+    action       VARCHAR(50)  NOT NULL CHECK (action IN ('CREATED', 'SUBMITTED', 'RECALLED', 'APPROVED', 'REJECTED', 'APPROVED_FOR_FILING', 'FILED', 'COMPLETED')),
+    comment      JSONB,
     performed_by UUID         NOT NULL REFERENCES users(id),
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );

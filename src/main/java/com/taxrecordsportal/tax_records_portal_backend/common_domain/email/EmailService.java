@@ -126,6 +126,19 @@ public class EmailService {
         }
     }
 
+    @Async
+    public void sendEndOfEngagementLetterEmail(String to, String subject, String renderedHtmlBody) {
+        try {
+            Context context = new Context();
+            context.setVariable("body", renderedHtmlBody);
+
+            String body = templateEngine.process("email/engagement-letter", context);
+            sendHtmlEmail(to, subject, body);
+        } catch (Exception e) {
+            log.error("Failed to send engagement letter email to {}: {}", to, e.getMessage(), e);
+        }
+    }
+
     private void sendHtmlEmail(String to, String subject, String body) {
         sendHtmlEmail(to, subject, body, null);
     }
@@ -160,8 +173,8 @@ public class EmailService {
             Response response = sendGrid.api(request);
 
             if (response.getStatusCode() >= 400) {
-                log.error("SendGrid error sending to {}: status={}, body={}", to, response.getStatusCode(), response.getBody());
-                throw new RuntimeException("Failed to send email: " + response.getBody());
+                log.error("SendGrid error sending to {}: status={}", to, response.getStatusCode());
+                throw new RuntimeException("Failed to send email via SendGrid, status=" + response.getStatusCode());
             }
 
             log.info("Email sent successfully to {} (status={})", to, response.getStatusCode());

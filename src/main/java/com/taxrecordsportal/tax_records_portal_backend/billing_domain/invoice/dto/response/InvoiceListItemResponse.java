@@ -12,12 +12,10 @@ public record InvoiceListItemResponse(
         String clientName,
         String invoiceNumber,
         LocalDate invoiceDate,
-        String termsName,
         LocalDate dueDate,
-        String description,
-        BigDecimal amountDue,
         BigDecimal balance,
         InvoiceStatus status,
         boolean emailSent,
-        boolean hasEmailRecipients
+        boolean hasEmailRecipients,
+        boolean isOverdue
 ) {}

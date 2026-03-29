@@ -42,10 +42,10 @@ public interface ClientInfoRepository extends JpaRepository<ClientInfo, UUID> {
     Optional<Boolean> existsEngagementLetterByUserId(UUID userId);
 
     @Query(value = """
-            SELECT jsonb_array_elements(ci.scope_of_engagement -> 'engagementLetters') ->> 'id'
+            SELECT ci.scope_of_engagement -> 'engagementLetters'
             FROM client_info ci
             JOIN users u ON u.client_id = ci.client_id
             WHERE u.id = :userId
             """, nativeQuery = true)
-    List<String> findEngagementLetterFileIdsByUserId(UUID userId);
+    Optional<String> findEngagementLettersByUserId(UUID userId);
 }

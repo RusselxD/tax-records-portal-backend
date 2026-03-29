@@ -1,8 +1,7 @@
 -- Permissions
 CREATE TABLE permissions (
-    id          SERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    description VARCHAR(255) NOT NULL
+    id   SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
 );
 
 -- Roles
@@ -28,6 +27,7 @@ CREATE TABLE employee_positions (
 -- Users (client_id FK added after clients table is created in V2)
 CREATE TABLE users (
     id            UUID PRIMARY KEY,
+    version       BIGINT       NOT NULL DEFAULT 0,
     role_id       INT          NOT NULL REFERENCES roles(id),
     first_name    VARCHAR(255) NOT NULL,
     last_name     VARCHAR(255) NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE users (
     position_id   INT REFERENCES employee_positions(id),
     client_id     UUID,
     titles        JSONB,
-    status        VARCHAR(255) NOT NULL,
+    status        VARCHAR(50)  NOT NULL CHECK (status IN ('PENDING', 'ACTIVE', 'DEACTIVATED')),
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
@@ -52,7 +52,7 @@ CREATE TABLE user_tokens (
     user_id    UUID         NOT NULL REFERENCES users(id),
     token      VARCHAR(255) NOT NULL,
     expires_at TIMESTAMPTZ  NOT NULL,
-    type       VARCHAR(255) NOT NULL,
+    type       VARCHAR(50)  NOT NULL CHECK (type IN ('ACCOUNT_ACTIVATION', 'PASSWORD_RESET', 'REFRESH_TOKEN')),
     UNIQUE (user_id, type)
 );
 

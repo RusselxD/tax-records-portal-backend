@@ -4,6 +4,7 @@ import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_ta
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.TaxRecordTaskStatus;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,7 +17,7 @@ public record TaxRecordTaskListItemResponse(
         int year,
         Period period,
         TaxRecordTaskStatus status,
-        Instant deadline,
+        LocalDate deadline,
         List<String> assignedTo,
         boolean isOverdue,
         String createdBy,

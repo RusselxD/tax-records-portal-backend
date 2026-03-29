@@ -1,6 +1,7 @@
 package com.taxrecordsportal.tax_records_portal_backend.file_domain.file;
 
 import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.dto.FileUploadResponse;
+import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.dto.ImageUploadResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
@@ -29,6 +30,28 @@ public class FileController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/api/v1/files/images")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ImageUploadResponse> uploadImage(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(fileService.uploadImage(file));
+    }
+
+    @DeleteMapping("/api/v1/files/images/{fileId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> deleteImage(@PathVariable UUID fileId) {
+        fileService.deleteImage(fileId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/api/v1/files/images/{fileId}")
+    public ResponseEntity<Resource> previewImage(@PathVariable UUID fileId) {
+        FileService.FilePreviewResult preview = fileService.getImagePreview(fileId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(preview.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.builder("inline").filename(preview.name()).build().toString())
+                .body(preview.resource());
+    }
+
     @DeleteMapping("/api/v1/files/{fileId}")
     @PreAuthorize("hasAuthority('document.upload')")
     public ResponseEntity<Void> delete(@PathVariable UUID fileId) {
@@ -37,14 +60,12 @@ public class FileController {
     }
 
     @GetMapping("/api/v1/files/{fileId}/preview")
-    @PreAuthorize("hasAuthority('client.view.own') or hasAuthority('client_info.view.own') or hasAuthority('client_info.view.all') or hasAuthority('tax_records.view.own') or hasAuthority('tax_records.view.all')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Resource> previewById(@PathVariable UUID fileId) {
-        FileEntity fileEntity = fileService.getFileEntity(fileId);
-        Resource resource = fileService.previewById(fileId);
-        String contentType = fileService.resolveMediaType(fileEntity.getName());
+        FileService.FilePreviewResult preview = fileService.getFilePreview(fileId);
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.builder("inline").filename(fileEntity.getName()).build().toString())
-                .body(resource);
+                .contentType(MediaType.parseMediaType(preview.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.builder("inline").filename(preview.name()).build().toString())
+                .body(preview.resource());
     }
 }

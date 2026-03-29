@@ -8,7 +8,7 @@ import java.util.UUID;
 public record TaxRecordTaskLogResponse(
         UUID id,
         TaxRecordTaskLogAction action,
-        String comment,
+        boolean hasComment,
         String performedBy,
         Instant performedAt
 ) {}

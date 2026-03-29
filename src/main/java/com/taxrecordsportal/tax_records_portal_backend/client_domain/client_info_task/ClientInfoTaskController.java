@@ -5,7 +5,8 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ClientInfoTaskResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileReviewListItemResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.dto.response.ClientInfoLogItemResponse;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.dto.response.ClientInfoTaskLogCommentResponse;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.dto.response.ClientInfoTaskLogResponse;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -76,8 +77,15 @@ public class ClientInfoTaskController {
 
     @GetMapping("/{taskId}/logs")
     @PreAuthorize("hasAuthority('client_info.create') or hasAuthority('client_info.review') or hasAuthority('client_info.view.all') or hasAuthority('client_info.edit')")
-    public ResponseEntity<List<ClientInfoLogItemResponse>> getClientInfoTaskLogs(@PathVariable UUID taskId) {
+    public ResponseEntity<List<ClientInfoTaskLogResponse>> getClientInfoTaskLogs(@PathVariable UUID taskId) {
         return ResponseEntity.ok(clientInfoTaskService.getLogsByTaskId(taskId));
+    }
+
+    @GetMapping("/{taskId}/logs/{logId}/comment")
+    @PreAuthorize("hasAuthority('client_info.create') or hasAuthority('client_info.review') or hasAuthority('client_info.view.all') or hasAuthority('client_info.edit')")
+    public ResponseEntity<ClientInfoTaskLogCommentResponse> getLogComment(
+            @PathVariable UUID taskId, @PathVariable UUID logId) {
+        return ResponseEntity.ok(clientInfoTaskService.getLogComment(taskId, logId));
     }
 
     @GetMapping("/reviews")

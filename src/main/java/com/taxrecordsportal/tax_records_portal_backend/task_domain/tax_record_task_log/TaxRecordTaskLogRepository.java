@@ -23,6 +23,10 @@ public interface TaxRecordTaskLogRepository extends JpaRepository<TaxRecordTaskL
     @EntityGraph(attributePaths = {"performedBy"})
     List<TaxRecordTaskLog> findByTaskIdOrderByCreatedAtDesc(UUID taskId);
 
+    boolean existsByTaskId(UUID taskId);
+
+    void deleteAllByTaskId(UUID taskId);
+
     // --- Reviewer (QTD) queue & decisions ---
 
     @Query("SELECT l FROM TaxRecordTaskLog l WHERE l.task.id IN :taskIds AND l.action = :action ORDER BY l.createdAt DESC")

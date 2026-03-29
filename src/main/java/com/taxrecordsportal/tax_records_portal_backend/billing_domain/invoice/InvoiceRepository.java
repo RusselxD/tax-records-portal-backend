@@ -4,16 +4,24 @@ import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dt
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.response.ClientNameProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.lang.NonNull;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
+public interface InvoiceRepository extends JpaRepository<Invoice, UUID>, JpaSpecificationExecutor<Invoice> {
+
+    @Override
+    @EntityGraph(attributePaths = {"client", "payments", "terms"})
+    Page<Invoice> findAll(@NonNull Specification<Invoice> spec, @NonNull Pageable pageable);
 
     boolean existsByInvoiceNumber(String invoiceNumber);
 
@@ -28,6 +36,22 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     @EntityGraph(attributePaths = {"payments"})
     List<Invoice> findByClientIdAndStatusInOrderByDueDateAsc(UUID clientId, List<InvoiceStatus> statuses);
+
+    @EntityGraph(attributePaths = {"payments"})
+    Page<Invoice> findByClientIdAndStatusIn(UUID clientId, List<InvoiceStatus> statuses, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"payments"})
+    Page<Invoice> findByClientId(UUID clientId, Pageable pageable);
+
+    @Query(nativeQuery = true, value = """
+            SELECT COALESCE(SUM(i.amount_due - COALESCE(p.paid, 0)), 0)
+            FROM invoices i
+            LEFT JOIN (SELECT invoice_id, SUM(amount) AS paid FROM invoice_payments GROUP BY invoice_id) p
+                ON p.invoice_id = i.id
+            WHERE i.client_id = :clientId AND i.status IN (:statuses)
+            """)
+    BigDecimal computeOutstandingBalance(@Param("clientId") UUID clientId,
+                                         @Param("statuses") List<String> statuses);
 
 
     @Query(nativeQuery = true, value = """
@@ -48,9 +72,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
                 COUNT(i.id) FILTER (WHERE i.status = 'UNPAID') AS unpaidInvoices,
                 COUNT(i.id) FILTER (WHERE i.status = 'PARTIALLY_PAID') AS partiallyPaidInvoices,
                 COUNT(i.id) FILTER (WHERE i.status = 'FULLY_PAID') AS fullyPaidInvoices,
-                COALESCE(SUM(i.amount_due) FILTER (WHERE i.voided = FALSE), 0) AS totalAmountDue,
-                COALESCE(SUM(i.amount_due) FILTER (WHERE i.voided = FALSE), 0)
-                  - COALESCE(SUM(p.paid) FILTER (WHERE i.voided = FALSE), 0) AS totalBalance
+                COALESCE(SUM(i.amount_due) FILTER (WHERE i.status != 'VOID'), 0) AS totalAmountDue,
+                COALESCE(SUM(i.amount_due) FILTER (WHERE i.status != 'VOID'), 0)
+                  - COALESCE(SUM(p.paid) FILTER (WHERE i.status != 'VOID'), 0) AS totalBalance
             FROM clients c
             JOIN client_info ci ON ci.client_id = c.id
             LEFT JOIN invoices i ON i.client_id = c.id

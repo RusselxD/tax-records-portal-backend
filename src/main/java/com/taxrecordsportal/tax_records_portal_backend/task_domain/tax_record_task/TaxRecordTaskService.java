@@ -4,11 +4,14 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Clie
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientRepository;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.TaxRecordEntryService;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
+import com.taxrecordsportal.tax_records_portal_backend.common.util.ClientDisplayNameUtil;
 import com.taxrecordsportal.tax_records_portal_backend.common.util.DateUtil;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.NotificationService;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.NotificationType;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.ReferenceType;
+import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.ReviewerNotificationHelper;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ClientDisplayNameProjection;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.request.CreateTaxRecordTaskRequest;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.*;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.DashboardStatsProjection;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ReviewerLogStatsProjection;
@@ -33,7 +36,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.taxrecordsportal.tax_records_portal_backend.common.util.UserDisplayUtil;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaskActionsResponse;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.mapper.TaxRecordTaskMapper;
+import org.springframework.security.core.GrantedAuthority;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -52,10 +57,14 @@ public class TaxRecordTaskService {
     private final UserRepository userRepository;
     private final ClientRepository clientRepository;
     private final NotificationService notificationService;
+    private final ReviewerNotificationHelper reviewerNotificationHelper;
     private final TaxRecordTaskLogRepository taxRecordTaskLogRepository;
     private final TaxRecordTaskMapper taskMapper;
     private final TaxRecordTaskAccessHelper accessHelper;
     private final TaxRecordEntryService taxRecordEntryService;
+    private final com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_category.TaxTaskCategoryRepository taxTaskCategoryRepository;
+    private final com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_sub_category.TaxTaskSubCategoryRepository taxTaskSubCategoryRepository;
+    private final com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_name.TaxTaskNameRepository taxTaskNameRepository;
 
     // --- Queries ---
 
@@ -63,8 +72,9 @@ public class TaxRecordTaskService {
     @Transactional(readOnly = true)
     public PageResponse<TaxRecordTaskListItemResponse> getTasks(
             String search, UUID clientId,
-            Integer taskNameId, Integer year, Period period, TaxRecordTaskStatus status,
-            UUID accountantId, int page, int size
+            Period period, TaxRecordTaskStatus status,
+            UUID accountantId, TaskSortField sortBy, Sort.Direction sortDirection,
+            int page, int size
     ) {
         User currentUser = getCurrentUser();
         boolean canViewAll = accessHelper.hasPermission(currentUser, "task.view.all");
@@ -84,10 +94,16 @@ public class TaxRecordTaskService {
         }
 
         Specification<TaxRecordTask> spec = TaxRecordTaskSpecification.withFilters(
-                search, clientId, taskNameId,
-                year, period, status, effectiveAccountantId, scopedUserId, clientScopedUserId);
+                search, clientId, period, status, effectiveAccountantId, scopedUserId, clientScopedUserId);
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable;
+        if (sortBy != null) {
+            Sort.Direction dir = sortDirection != null ? sortDirection : defaultDirection(sortBy);
+            spec = spec.and(TaxRecordTaskSpecification.withSort(sortBy, dir));
+            pageable = PageRequest.of(page, size);
+        } else {
+            pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
 
         Page<TaxRecordTask> taskPage = taxRecordTaskRepository.findAll(spec, pageable);
         List<TaxRecordTask> tasks = taskPage.getContent();
@@ -128,7 +144,7 @@ public class TaxRecordTaskService {
     public TaxRecordTaskDetailResponse getTask(UUID id) {
         TaxRecordTask task = accessHelper.findTaskOrThrow(id);
         accessHelper.enforceViewAccess(task);
-        return taskMapper.toDetailResponse(task);
+        return taskMapper.toDetailResponse(task, computeActions(task));
     }
 
     /** Cursor-paginated tasks for a specific client. */
@@ -241,11 +257,7 @@ public class TaxRecordTaskService {
                 .stream()
                 .collect(Collectors.toMap(
                         ClientDisplayNameProjection::getClientId,
-                        p -> {
-                            String r = p.getRegisteredName(), tr = p.getTradeName();
-                            if (r != null && tr != null) return r + " (" + tr + ")";
-                            return r != null ? r : tr;
-                        }));
+                        p -> ClientDisplayNameUtil.format(p.getRegisteredName(), p.getTradeName())));
 
         return tasks.stream()
                 .map(t -> {
@@ -283,11 +295,7 @@ public class TaxRecordTaskService {
                 .stream()
                 .collect(Collectors.toMap(
                         ClientDisplayNameProjection::getClientId,
-                        p -> {
-                            String r = p.getRegisteredName(), tr = p.getTradeName();
-                            if (r != null && tr != null) return r + " (" + tr + ")";
-                            return r != null ? r : tr;
-                        }));
+                        p -> ClientDisplayNameUtil.format(p.getRegisteredName(), p.getTradeName())));
 
         return logs.stream()
                 .map(log -> {
@@ -371,6 +379,76 @@ public class TaxRecordTaskService {
         )).toList();
     }
 
+    /** Paginated overdue tasks for the current accountant. */
+    @Transactional(readOnly = true)
+    public PageResponse<TaxRecordTaskOverdueItemResponse> getMyOverdueTasksPaged(int page, int size) {
+        User currentUser = getCurrentUser();
+        Instant now = Instant.now();
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "deadline"));
+        Page<TaxRecordTask> taskPage = taxRecordTaskRepository.findPageOverdueByUserId(
+                currentUser.getId(),
+                List.of(TaxRecordTaskStatus.OPEN, TaxRecordTaskStatus.REJECTED),
+                now, pageable);
+
+        if (taskPage.isEmpty()) return PageResponse.from(taskPage.map(t -> null));
+
+        List<UUID> clientIds = taskPage.getContent().stream().map(t -> t.getClient().getId()).distinct().toList();
+        Map<UUID, String> clientNameMap = taxRecordTaskRepository.findClientDisplayNamesByIds(clientIds)
+                .stream().collect(Collectors.toMap(
+                        ClientDisplayNameProjection::getClientId,
+                        p -> computeClientDisplayName(p.getRegisteredName(), p.getTradeName()),
+                        (a, b) -> a));
+
+        return PageResponse.from(taskPage.map(t -> new TaxRecordTaskOverdueItemResponse(
+                t.getId(),
+                clientNameMap.getOrDefault(t.getClient().getId(), null),
+                t.getTaskName().getName(),
+                t.getCategory().getName(),
+                t.getSubCategory().getName(),
+                t.getPeriod(),
+                t.getYear(),
+                t.getStatus(),
+                t.getDeadline().atZone(DateUtil.ZONE_PH).toLocalDate(),
+                UserDisplayUtil.formatDisplayName(t.getCreatedBy()),
+                t.getCreatedAt()
+        )));
+    }
+
+    /** Paginated rejected tasks for the current accountant. */
+    @Transactional(readOnly = true)
+    public PageResponse<TaxRecordTaskRejectedItemResponse> getMyRejectedTasksPaged(int page, int size) {
+        User user = getCurrentUser();
+        Instant now = Instant.now();
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "deadline"));
+        Page<TaxRecordTask> taskPage = taxRecordTaskRepository.findPageByUserIdAndStatuses(
+                user.getId(), List.of(TaxRecordTaskStatus.REJECTED), pageable);
+
+        if (taskPage.isEmpty()) return PageResponse.from(taskPage.map(t -> null));
+
+        List<UUID> clientIds = taskPage.getContent().stream().map(t -> t.getClient().getId()).distinct().toList();
+        Map<UUID, String> clientNameMap = taxRecordTaskRepository.findClientDisplayNamesByIds(clientIds)
+                .stream().collect(Collectors.toMap(
+                        ClientDisplayNameProjection::getClientId,
+                        p -> computeClientDisplayName(p.getRegisteredName(), p.getTradeName()),
+                        (a, b) -> a));
+
+        return PageResponse.from(taskPage.map(t -> new TaxRecordTaskRejectedItemResponse(
+                t.getId(),
+                clientNameMap.getOrDefault(t.getClient().getId(), null),
+                t.getTaskName().getName(),
+                t.getCategory().getName(),
+                t.getSubCategory().getName(),
+                t.getPeriod(),
+                t.getYear(),
+                t.getDeadline().atZone(DateUtil.ZONE_PH).toLocalDate(),
+                t.getDeadline().isBefore(now),
+                UserDisplayUtil.formatDisplayName(t.getCreatedBy()),
+                t.getCreatedAt()
+        )));
+    }
+
     @Transactional(readOnly = true)
     public PageResponse<TaxRecordTaskTodoListItemResponse> getMyTodoTasks(int page, int size) {
         User user = getCurrentUser();
@@ -411,11 +489,146 @@ public class TaxRecordTaskService {
         return PageResponse.from(resultPage);
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<TaxRecordTaskProgressListItemResponse> getMyProgressTasks(
+            TaxRecordTaskStatus status, int page, int size) {
+        User user = getCurrentUser();
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "deadline"));
+        Page<TaxRecordTask> taskPage = taxRecordTaskRepository.findPageByUserIdAndStatus(
+                user.getId(), List.of(status), pageable);
+
+        List<TaxRecordTask> tasks = taskPage.getContent();
+
+        if (tasks.isEmpty()) {
+            return PageResponse.from(taskPage.map(t -> null));
+        }
+
+        List<UUID> clientIds = tasks.stream().map(t -> t.getClient().getId()).distinct().toList();
+        Map<UUID, String> clientNameMap = taxRecordTaskRepository.findClientDisplayNamesByIds(clientIds)
+                .stream().collect(Collectors.toMap(
+                        ClientDisplayNameProjection::getClientId,
+                        p -> computeClientDisplayName(p.getRegisteredName(), p.getTradeName()),
+                        (a, b) -> a));
+
+        Page<TaxRecordTaskProgressListItemResponse> resultPage = taskPage.map(t -> new TaxRecordTaskProgressListItemResponse(
+                t.getId(),
+                clientNameMap.getOrDefault(t.getClient().getId(), null),
+                t.getCategory().getName(),
+                t.getSubCategory().getName(),
+                t.getTaskName().getName(),
+                t.getYear(),
+                t.getPeriod(),
+                t.getDeadline().atZone(DateUtil.ZONE_PH).toLocalDate(),
+                UserDisplayUtil.formatDisplayName(t.getCreatedBy()),
+                t.getCreatedAt()
+        ));
+
+        return PageResponse.from(resultPage);
+    }
+
+    // --- Single task creation ---
+
+    @Transactional
+    public CreateTaxRecordTaskResponse createTask(CreateTaxRecordTaskRequest request) {
+        User currentUser = getCurrentUser();
+
+        Client client = clientRepository.findWithAccountantsById(request.clientId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+
+        if (client.getStatus() != com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientStatus.ACTIVE_CLIENT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client is not active");
+        }
+
+        User accountant = userRepository.findById(request.assignedToId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Accountant not found"));
+
+        RoleKey accountantRole = accountant.getRole().getKey();
+        if (accountantRole != RoleKey.CSD && accountantRole != RoleKey.OOS) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Accountant must be CSD or OOS");
+        }
+
+        boolean isAssigned = client.getAccountants() != null
+                && client.getAccountants().stream().anyMatch(a -> a.getId().equals(request.assignedToId()));
+        if (!isAssigned) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Accountant is not assigned to this client");
+        }
+
+        var category = taxTaskCategoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found"));
+        var subCategory = taxTaskSubCategoryRepository.findById(request.subCategoryId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sub category not found"));
+        var taskName = taxTaskNameRepository.findById(request.taskNameId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task name not found"));
+
+        TaxRecordTask task = new TaxRecordTask();
+        task.setClient(client);
+        task.setCategory(category);
+        task.setSubCategory(subCategory);
+        task.setTaskName(taskName);
+        task.setYear(request.year());
+        task.setPeriod(request.period());
+        task.setDeadline(request.deadline().atStartOfDay().toInstant(java.time.ZoneOffset.UTC));
+        task.setDescription(request.description());
+        task.setStatus(TaxRecordTaskStatus.OPEN);
+        task.setCreatedBy(currentUser);
+        task.setAssignedTo(Set.of(accountant));
+
+        TaxRecordTask saved = taxRecordTaskRepository.save(task);
+
+        notificationService.notifyAll(
+                List.of(accountant),
+                NotificationType.TASK_ASSIGNED,
+                saved.getId(),
+                ReferenceType.TAX_RECORD_TASK,
+                "New task assigned: " + taskName.getName());
+
+        return new CreateTaxRecordTaskResponse(saved.getId());
+    }
+
+    // --- Delete ---
+
+    @Transactional
+    public void deleteTask(UUID taskId) {
+        TaxRecordTask task = taxRecordTaskRepository.findById(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
+
+        User currentUser = getCurrentUser();
+        boolean isManager = currentUser.getRole().getKey() == RoleKey.MANAGER;
+
+        if (!isManager && !task.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the task creator or a manager can delete this task");
+        }
+
+        if (task.getStatus() != TaxRecordTaskStatus.OPEN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only tasks with OPEN status can be deleted");
+        }
+
+        if (taxRecordTaskLogRepository.existsByTaskId(taskId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot delete a task that has activity logs");
+        }
+
+        if (task.getWorkingFiles() != null && !task.getWorkingFiles().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot delete a task that has working files");
+        }
+
+        if (task.getOutputFile() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot delete a task that has an output file");
+        }
+
+        if (task.getProofOfFilingFile() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot delete a task that has a proof of filing file");
+        }
+
+        notificationService.deleteByReference(taskId, ReferenceType.TAX_RECORD_TASK);
+        taxRecordTaskRepository.delete(task);
+    }
+
     // --- Status transitions ---
 
     /** CSD/OOS submits task for review. OPEN/REJECTED → SUBMITTED */
     @Transactional
-    public void submit(UUID taskId, String comment) {
+    public void submit(UUID taskId, Map<String, Object> comment) {
         TaxRecordTask task = accessHelper.findTaskOrThrow(taskId);
         accessHelper.enforceAssigned(task);
         requireStatus(task, Set.of(TaxRecordTaskStatus.OPEN, TaxRecordTaskStatus.REJECTED));
@@ -429,7 +642,7 @@ public class TaxRecordTaskService {
 
     /** Manager/QTD approves submitted task. SUBMITTED → APPROVED_FOR_FILING */
     @Transactional
-    public void approve(UUID taskId, String comment) {
+    public void approve(UUID taskId, Map<String, Object> comment) {
         TaxRecordTask task = accessHelper.findTaskOrThrow(taskId);
         accessHelper.enforceReviewAccess(task);
         requireStatus(task, Set.of(TaxRecordTaskStatus.SUBMITTED));
@@ -443,7 +656,7 @@ public class TaxRecordTaskService {
 
     /** Manager/QTD rejects submitted task. SUBMITTED → REJECTED */
     @Transactional
-    public void reject(UUID taskId, String comment) {
+    public void reject(UUID taskId, Map<String, Object> comment) {
         TaxRecordTask task = accessHelper.findTaskOrThrow(taskId);
         accessHelper.enforceReviewAccess(task);
         requireStatus(task, Set.of(TaxRecordTaskStatus.SUBMITTED));
@@ -506,7 +719,7 @@ public class TaxRecordTaskService {
         }
     }
 
-    private void createLog(TaxRecordTask task, TaxRecordTaskLogAction action, String comment) {
+    private void createLog(TaxRecordTask task, TaxRecordTaskLogAction action, Map<String, Object> comment) {
         TaxRecordTaskLog log = new TaxRecordTaskLog();
         log.setTask(task);
         log.setAction(action);
@@ -524,29 +737,53 @@ public class TaxRecordTaskService {
     }
 
     private void notifyReviewers(TaxRecordTask task, NotificationType type, String message) {
-        List<User> managers = userRepository.findByRole_KeyInAndStatus(
-                List.of(RoleKey.MANAGER), UserStatus.ACTIVE);
+        reviewerNotificationHelper.notifyReviewers(
+                task.getClient(), task.getId(), type, ReferenceType.TAX_RECORD_TASK, message);
+    }
 
-        Set<User> accountants = task.getClient().getAccountants();
-        List<User> assignedQtd = accountants != null
-                ? accountants.stream()
-                    .filter(u -> u.getRole().getKey() == RoleKey.QTD && u.getStatus() == UserStatus.ACTIVE)
-                    .toList()
-                : List.of();
-
-        List<User> reviewers = new ArrayList<>(managers);
-        reviewers.addAll(assignedQtd);
-
-        if (!reviewers.isEmpty()) {
-            notificationService.notifyAll(reviewers, type,
-                    task.getId(), ReferenceType.TAX_RECORD_TASK, message);
-        }
+    private Sort.Direction defaultDirection(TaskSortField sortBy) {
+        return switch (sortBy) {
+            case deadline, createdAt -> Sort.Direction.DESC;
+            default -> Sort.Direction.ASC;
+        };
     }
 
     private String computeClientDisplayName(String registeredName, String tradeName) {
-        if (registeredName != null && tradeName != null) return registeredName + " (" + tradeName + ")";
-        if (registeredName != null) return registeredName;
-        return tradeName;
+        return ClientDisplayNameUtil.format(registeredName, tradeName);
+    }
+
+    private TaskActionsResponse computeActions(TaxRecordTask task) {
+        User user = getCurrentUser();
+        Set<String> perms = user.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toSet());
+
+        boolean canExecute = perms.contains("task.execute");
+        boolean canReview = perms.contains("task.review");
+        boolean canCreate = perms.contains("task.create");
+
+        TaxRecordTaskStatus status = task.getStatus();
+        boolean isOpen = status == TaxRecordTaskStatus.OPEN;
+        boolean isRejected = status == TaxRecordTaskStatus.REJECTED;
+        boolean isSubmitted = status == TaxRecordTaskStatus.SUBMITTED;
+        boolean isApprovedForFiling = status == TaxRecordTaskStatus.APPROVED_FOR_FILING;
+        boolean isFiled = status == TaxRecordTaskStatus.FILED;
+
+        boolean hasWorkingFiles = task.getWorkingFiles() != null && !task.getWorkingFiles().isEmpty();
+
+        return new TaskActionsResponse(
+                canExecute && (isOpen || isRejected),           // canEdit
+                canExecute && hasWorkingFiles && (isOpen || isRejected), // canSubmit
+                canExecute && isSubmitted,                       // canRecall
+                canReview && isSubmitted,                        // canApprove
+                canReview && isSubmitted,                        // canReject
+                canExecute && isApprovedForFiling,               // canMarkFiled
+                canExecute && isFiled,                           // canMarkCompleted
+                canExecute && (isOpen || isRejected),           // canUploadWorkingFiles
+                canExecute && (isOpen || isRejected),           // canUploadOutput
+                canExecute && isFiled,                           // canUploadProof
+                canCreate && isOpen                              // canDelete
+        );
     }
 
     private void enforceClientAssignment(UUID clientId, User user) {

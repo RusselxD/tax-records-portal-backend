@@ -2,10 +2,12 @@ package com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice;
 
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.request.InvoiceCreateRequest;
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.request.ReceivePaymentRequest;
+import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.request.UpdatePaymentRequest;
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.response.*;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -33,15 +35,27 @@ public class InvoiceController {
     @PreAuthorize("hasAuthority('billing.manage')")
     public ResponseEntity<PageResponse<InvoiceListItemResponse>> getInvoices(
             @RequestParam(required = false) UUID clientId,
+            @RequestParam(required = false) InvoiceStatus status,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(invoiceService.getInvoices(clientId, page, size));
+        return ResponseEntity.ok(invoiceService.getInvoices(clientId, status, search, page, size));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('billing.manage')")
     public ResponseEntity<InvoiceDetailResponse> getInvoice(@PathVariable UUID id) {
         return ResponseEntity.ok(invoiceService.getInvoice(id));
+    }
+
+    @GetMapping("/client/{clientId}")
+    @PreAuthorize("hasAuthority('client.view.own') or hasAuthority('client.view.all')")
+    public ResponseEntity<ClientInvoiceSidebarPageResponse> getClientInvoices(
+            @PathVariable UUID clientId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "all") String filter) {
+        return ResponseEntity.ok(invoiceService.getClientInvoices(clientId, filter, page, size));
     }
 
     @GetMapping("/me/outstanding")
@@ -68,7 +82,7 @@ public class InvoiceController {
     @PreAuthorize("hasAuthority('billing.manage')")
     public ResponseEntity<InvoiceDetailResponse> createInvoice(
             @Valid @RequestBody InvoiceCreateRequest request) {
-        return ResponseEntity.ok(invoiceService.createInvoice(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(invoiceService.createInvoice(request));
     }
 
     @DeleteMapping("/{id}")
@@ -98,6 +112,15 @@ public class InvoiceController {
             @PathVariable UUID id,
             @Valid @RequestBody ReceivePaymentRequest request) {
         return ResponseEntity.ok(invoiceService.receivePayment(id, request));
+    }
+
+    @PutMapping("/{id}/payments/{paymentId}")
+    @PreAuthorize("hasAuthority('billing.manage')")
+    public ResponseEntity<InvoicePaymentResponse> updatePayment(
+            @PathVariable UUID id,
+            @PathVariable UUID paymentId,
+            @Valid @RequestBody UpdatePaymentRequest request) {
+        return ResponseEntity.ok(invoiceService.updatePayment(id, paymentId, request));
     }
 
     @PostMapping("/{id}/payments/{paymentId}/send-email")

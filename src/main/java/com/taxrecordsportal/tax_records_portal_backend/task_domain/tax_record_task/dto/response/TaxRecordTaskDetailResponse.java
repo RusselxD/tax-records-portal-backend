@@ -4,6 +4,7 @@ import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_ta
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.TaxRecordTaskStatus;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,10 +18,11 @@ public record TaxRecordTaskDetailResponse(
         int year,
         Period period,
         String description,
-        Instant deadline,
+        LocalDate deadline,
         TaxRecordTaskStatus status,
         List<String> assignedTo,
         String createdBy,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        TaskActionsResponse actions
 ) {}

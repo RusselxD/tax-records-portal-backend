@@ -26,16 +26,20 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidationException(
+    public ResponseEntity<Map<String, Object>> handleValidationException(
             MethodArgumentNotValidException exception
     ){
-        Map<String, String> errors = new HashMap<>();
+        Map<String, String> fieldErrors = new HashMap<>();
 
         exception.getBindingResult().getFieldErrors()
                 .forEach(error ->
-                        errors.put(error.getField(), error.getDefaultMessage()));
+                        fieldErrors.put(error.getField(), error.getDefaultMessage()));
 
-        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", "Validation failed");
+        body.put("errors", fieldErrors);
+
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(ClientInfoSectionException.class)
@@ -57,22 +61,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Map<String, String>> handleTypeMismatch(MethodArgumentTypeMismatchException exception) {
         String paramName = exception.getName();
-        String invalidValue = exception.getValue() != null ? exception.getValue().toString() : "null";
-        String expectedType = exception.getRequiredType() != null && exception.getRequiredType().isEnum()
-                ? String.join(", ", java.util.Arrays.stream(exception.getRequiredType().getEnumConstants())
-                    .map(Object::toString).toArray(String[]::new))
-                : exception.getRequiredType() != null ? exception.getRequiredType().getSimpleName() : "unknown";
 
-        String message = exception.getRequiredType() != null && exception.getRequiredType().isEnum()
-                ? "Invalid value '%s' for parameter '%s'. Accepted values: [%s]".formatted(invalidValue, paramName, expectedType)
-                : "Invalid value '%s' for parameter '%s'. Expected type: %s".formatted(invalidValue, paramName, expectedType);
+        String message;
+        if (exception.getRequiredType() != null && exception.getRequiredType().isEnum()) {
+            String acceptedValues = String.join(", ", java.util.Arrays.stream(exception.getRequiredType().getEnumConstants())
+                    .map(Object::toString).toArray(String[]::new));
+            message = "Invalid value for parameter '%s'. Accepted values: [%s]".formatted(paramName, acceptedValues);
+        } else {
+            String expectedType = exception.getRequiredType() != null ? exception.getRequiredType().getSimpleName() : "unknown";
+            message = "Invalid value for parameter '%s'. Expected type: %s".formatted(paramName, expectedType);
+        }
 
         return new ResponseEntity<>(Map.of("message", message), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, String>> handleOptimisticLock(ObjectOptimisticLockingFailureException exception) {
-        Map<String, String> error = Map.of("error", "This record was modified by another user. Please refresh and try again.");
+        Map<String, String> error = Map.of("message", "This record was modified by another user. Please refresh and try again.");
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
@@ -116,7 +121,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<Map<String, String>> handleNoHandler(NoHandlerFoundException exception) {
-        return new ResponseEntity<>(Map.of("message", "Endpoint not found: %s %s".formatted(exception.getHttpMethod(), exception.getRequestURL())), HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(Map.of("message", "Endpoint not found"), HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(AsyncRequestNotUsableException.class)

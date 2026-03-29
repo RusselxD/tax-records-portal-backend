@@ -1,8 +1,10 @@
 package com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_name;
 
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.tax_record_entry.TaxRecordEntryRepository;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.TaxRecordTaskRepository;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaxRecordLookupResponse;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_sub_category.TaxTaskSubCategory;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_sub_category.TaxTaskSubCategoryService;
-import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_name.dto.response.TaxTaskNameResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,24 +19,27 @@ public class TaxTaskNameService {
 
     private final TaxTaskNameRepository taxTaskNameRepository;
     private final TaxTaskSubCategoryService taxTaskSubCategoryService;
+    private final TaxRecordTaskRepository taxRecordTaskRepository;
+    private final TaxRecordEntryRepository taxRecordEntryRepository;
 
     @Transactional(readOnly = true)
-    public List<TaxTaskNameResponse> getAll() {
+    public List<TaxRecordLookupResponse> getAll() {
         return taxTaskNameRepository.findAll()
                 .stream()
-                .map(t -> new TaxTaskNameResponse(t.getId(), t.getName()))
+                .map(tn -> new TaxRecordLookupResponse(tn.getId(), tn.getName()))
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<TaxTaskNameResponse> getBySubCategory(Integer subCategoryId) {
+    public List<TaxRecordLookupResponse> getBySubCategory(Integer subCategoryId) {
         return taxTaskNameRepository.findBySubCategoryId(subCategoryId)
                 .stream()
-                .map(taskName -> new TaxTaskNameResponse(taskName.getId(), taskName.getName()))
+                .map(tn -> new TaxRecordLookupResponse(tn.getId(), tn.getName()))
                 .toList();
     }
 
-    public TaxTaskNameResponse create(Integer subCategoryId, String name) {
+    @Transactional
+    public TaxRecordLookupResponse create(Integer subCategoryId, String name) {
         TaxTaskSubCategory subCategory = taxTaskSubCategoryService.getById(subCategoryId);
 
         if (taxTaskNameRepository.existsByNameAndSubCategoryId(name, subCategoryId)) {
@@ -46,6 +51,23 @@ public class TaxTaskNameService {
         taskName.setName(name);
 
         TaxTaskName saved = taxTaskNameRepository.save(taskName);
-        return new TaxTaskNameResponse(saved.getId(), saved.getName());
+        return new TaxRecordLookupResponse(saved.getId(), saved.getName());
+    }
+
+    @Transactional
+    public void delete(Integer subCategoryId, Integer taskNameId) {
+        TaxTaskName taskName = taxTaskNameRepository.findById(taskNameId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task name not found"));
+
+        if (!taskName.getSubCategory().getId().equals(subCategoryId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Task name not found in this sub category");
+        }
+
+        if (taxRecordTaskRepository.existsByTaskNameId(taskNameId)
+                || taxRecordEntryRepository.existsByTaskNameId(taskNameId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Task name is referenced and cannot be deleted");
+        }
+
+        taxTaskNameRepository.delete(taskName);
     }
 }

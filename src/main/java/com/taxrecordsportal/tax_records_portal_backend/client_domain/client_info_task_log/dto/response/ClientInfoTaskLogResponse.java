@@ -3,11 +3,13 @@ package com.taxrecordsportal.tax_records_portal_backend.client_domain.client_inf
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.ClientInfoTaskLogAction;
 
 import java.time.Instant;
+import java.util.UUID;
 
-public record ClientInfoLogItemResponse(
+public record ClientInfoTaskLogResponse(
+        UUID id,
         String performedBy,
         ClientInfoTaskLogAction action,
-        String comment,
+        boolean hasComment,
         Instant createdAt
 ) {
 }

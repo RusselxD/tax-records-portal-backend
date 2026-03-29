@@ -3,7 +3,7 @@ CREATE TABLE files (
     id          UUID PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
     url         VARCHAR(255) NOT NULL,
-    client_id   UUID         NOT NULL REFERENCES clients(id),
+    client_id   UUID         REFERENCES clients(id),
     uploaded_by UUID         NOT NULL REFERENCES users(id),
     uploaded_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );

@@ -5,5 +5,6 @@ public enum ReferenceType {
     TAX_RECORD_TASK,
     CLIENT,
     CLIENT_INFO,
-    CLIENT_INFO_EDIT
+    CLIENT_INFO_EDIT,
+    CONSULTATION_LOG
 }

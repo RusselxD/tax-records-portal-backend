@@ -77,4 +77,9 @@ public class NotificationService {
                 .toList();
         notificationRepository.saveAll(notifications);
     }
+
+    @Transactional
+    public void deleteByReference(UUID referenceId, ReferenceType referenceType) {
+        notificationRepository.deleteAllByReferenceIdAndReferenceType(referenceId, referenceType);
+    }
 }

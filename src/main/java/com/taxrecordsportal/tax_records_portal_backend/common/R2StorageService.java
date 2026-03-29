@@ -32,6 +32,9 @@ public class R2StorageService {
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(accessKeyId, secretAccessKey)))
                 .region(Region.of("auto"))
+                .overrideConfiguration(c -> c
+                    .apiCallTimeout(java.time.Duration.ofSeconds(30))
+                    .apiCallAttemptTimeout(java.time.Duration.ofSeconds(10)))
                 .build();
     }
 
@@ -70,6 +73,11 @@ public class R2StorageService {
                 .contents().stream()
                 .map(S3Object::key)
                 .toList();
+    }
+
+    @jakarta.annotation.PreDestroy
+    void shutdown() {
+        s3Client.close();
     }
 
     public void deleteByPrefix(String prefix) {

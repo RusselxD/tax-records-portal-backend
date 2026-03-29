@@ -6,6 +6,7 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -15,7 +16,7 @@ public record ProfileUpdateReviewResponse(
         ClientInfoTaskStatus status,
         Submitter submittedBy,
         Instant submittedAt,
-        String comment,
+        Map<String, Object> comment,
         List<SectionDiff> sections
 ) {
 

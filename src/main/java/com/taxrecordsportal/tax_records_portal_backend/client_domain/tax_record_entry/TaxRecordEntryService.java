@@ -10,6 +10,7 @@ import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileEnti
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.Period;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.TaxRecordTask;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.WorkingFileItem;
+import com.taxrecordsportal.tax_records_portal_backend.common.util.ClientAccessHelper;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,24 +31,22 @@ public class TaxRecordEntryService {
 
     private final TaxRecordEntryRepository taxRecordEntryRepository;
     private final ClientRepository clientRepository;
+    private final ClientAccessHelper clientAccessHelper;
 
-    @Transactional(readOnly = true)
-    public List<TaxRecordEntryResponse> getByClientId(UUID clientId) {
+    public void enforceClientAccess(UUID clientId) {
         User currentUser = getCurrentUser();
         boolean hasViewAll = currentUser.getAuthorities().stream()
                 .anyMatch(a -> Objects.equals(a.getAuthority(), "tax_records.view.all"));
+        if (hasViewAll) return;
 
-        if (!hasViewAll) {
-            Client client = clientRepository.findWithAccountantsAndUsersById(clientId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
-            boolean isAssigned = client.getAccountants() != null
-                    && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
-            boolean isClient = client.getUsers() != null
-                    && client.getUsers().stream().anyMatch(u -> u.getId().equals(currentUser.getId()));
-            if (!isAssigned && !isClient) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this client's tax records");
-            }
-        }
+        Client client = clientRepository.findWithAccountantsAndUsersById(clientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+        clientAccessHelper.enforceAccess(client, "You do not have access to this client's tax records", "tax_records.view.all");
+    }
+
+    @Transactional(readOnly = true)
+    public List<TaxRecordEntryResponse> getByClientId(UUID clientId) {
+        enforceClientAccess(clientId);
 
         return taxRecordEntryRepository.findByClientId(clientId)
                 .stream()

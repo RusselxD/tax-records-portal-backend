@@ -69,14 +69,38 @@ public class UserService {
     private long activationTokenExpiration;
 
     @Transactional(readOnly = true)
-    public List<UserListItemResponse> getAllEmployees() {
+    public List<UserListItemResponse> getAllEmployees(String search, RoleKey roleKey, UserStatus status, String position) {
         Role clientRole = roleRepository.findByKey(RoleKey.CLIENT)
-                .orElseThrow(() -> new RuntimeException("Client role not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Client role not found"));
 
-        return userRepository.findAllByRoleNot(clientRole)
-                .stream()
-                .map(userMapper::mapUserToListItem)
-                .toList();
+        var users = userRepository.findAllByRoleNot(clientRole)
+                .stream();
+
+        if (roleKey != null) {
+            users = users.filter(u -> u.getRole() != null && u.getRole().getKey() == roleKey);
+        }
+        if (status != null) {
+            users = users.filter(u -> u.getStatus() == status);
+        }
+
+        var results = users.map(userMapper::mapUserToListItem).toList();
+
+        if (search != null && !search.isBlank()) {
+            String lower = search.toLowerCase();
+            results = results.stream()
+                    .filter(u -> (u.firstName() != null && u.firstName().toLowerCase().contains(lower))
+                            || (u.lastName() != null && u.lastName().toLowerCase().contains(lower))
+                            || (u.email() != null && u.email().toLowerCase().contains(lower)))
+                    .toList();
+        }
+        if (position != null && !position.isBlank()) {
+            String lower = position.toLowerCase();
+            results = results.stream()
+                    .filter(u -> u.position() != null && u.position().toLowerCase().contains(lower))
+                    .toList();
+        }
+
+        return results;
     }
 
     @Transactional

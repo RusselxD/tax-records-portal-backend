@@ -60,7 +60,7 @@ public interface TaxRecordTaskRepository extends JpaRepository<TaxRecordTask, UU
     @EntityGraph(attributePaths = {"client.clientInfo", "assignedTo", "category", "subCategory", "taskName"})
     List<TaxRecordTask> findByAssignedTo_Id(UUID userId);
 
-    @EntityGraph(attributePaths = {"client.clientInfo", "client.accountants", "assignedTo", "category", "subCategory", "taskName", "createdBy"})
+    @EntityGraph(attributePaths = {"client.clientInfo", "client.accountants", "client.accountants.role", "assignedTo", "category", "subCategory", "taskName", "createdBy"})
     @Query("SELECT t FROM TaxRecordTask t WHERE t.id = :id")
     Optional<TaxRecordTask> findWithDetailsById(@Param("id") UUID id);
 
@@ -188,12 +188,33 @@ public interface TaxRecordTaskRepository extends JpaRepository<TaxRecordTask, UU
             @Param("now") Instant now);
 
     @EntityGraph(attributePaths = {"client", "category", "subCategory", "taskName", "createdBy"})
+    @Query(value = "SELECT t FROM TaxRecordTask t JOIN t.assignedTo a " +
+            "WHERE a.id = :userId AND t.status IN :statuses AND t.deadline < :now",
+            countQuery = "SELECT COUNT(t) FROM TaxRecordTask t JOIN t.assignedTo a " +
+            "WHERE a.id = :userId AND t.status IN :statuses AND t.deadline < :now")
+    Page<TaxRecordTask> findPageOverdueByUserId(
+            @Param("userId") UUID userId,
+            @Param("statuses") List<TaxRecordTaskStatus> statuses,
+            @Param("now") Instant now,
+            Pageable pageable);
+
+    @EntityGraph(attributePaths = {"client", "category", "subCategory", "taskName", "createdBy"})
     @Query("SELECT t FROM TaxRecordTask t JOIN t.assignedTo a " +
             "WHERE a.id = :userId AND t.status IN :status " +
             "ORDER BY t.deadline ASC")
     List<TaxRecordTask> findByUserIdAndStatus(
             @Param("userId") UUID userId,
             @Param("status") List<TaxRecordTaskStatus> status);
+
+    @EntityGraph(attributePaths = {"client", "category", "subCategory", "taskName", "createdBy"})
+    @Query(value = "SELECT t FROM TaxRecordTask t JOIN t.assignedTo a " +
+            "WHERE a.id = :userId AND t.status IN :status",
+            countQuery = "SELECT COUNT(t) FROM TaxRecordTask t JOIN t.assignedTo a " +
+            "WHERE a.id = :userId AND t.status IN :status")
+    Page<TaxRecordTask> findPageByUserIdAndStatuses(
+            @Param("userId") UUID userId,
+            @Param("status") List<TaxRecordTaskStatus> status,
+            Pageable pageable);
 
     @EntityGraph(attributePaths = {"client", "category", "subCategory", "taskName", "createdBy"})
     @Query(value = "SELECT t FROM TaxRecordTask t JOIN t.assignedTo a " +
@@ -233,4 +254,10 @@ public interface TaxRecordTaskRepository extends JpaRepository<TaxRecordTask, UU
     ReviewerTaskStatsProjection findReviewerTaskStatsByUserId(
             @Param("userId") UUID userId,
             @Param("todayStart") Instant todayStart);
+
+    boolean existsByCategoryId(Integer categoryId);
+
+    boolean existsBySubCategoryId(Integer subCategoryId);
+
+    boolean existsByTaskNameId(Integer taskNameId);
 }

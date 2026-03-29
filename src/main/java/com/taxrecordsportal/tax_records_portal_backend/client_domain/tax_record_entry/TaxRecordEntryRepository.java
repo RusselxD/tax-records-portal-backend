@@ -85,4 +85,10 @@ public interface TaxRecordEntryRepository extends JpaRepository<TaxRecordEntry, 
     @EntityGraph(attributePaths = {"category", "subCategory", "taskName"})
     @Query("SELECT e FROM TaxRecordEntry e WHERE e.client.id = :clientId AND e.createdAt >= :since ORDER BY e.createdAt DESC LIMIT 5")
     List<TaxRecordEntry> findRecentByClientId(@Param("clientId") UUID clientId, @Param("since") Instant since);
+
+    boolean existsByCategoryId(Integer categoryId);
+
+    boolean existsBySubCategoryId(Integer subCategoryId);
+
+    boolean existsByTaskNameId(Integer taskNameId);
 }

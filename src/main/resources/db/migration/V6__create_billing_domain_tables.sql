@@ -16,8 +16,7 @@ CREATE TABLE invoices (
     due_date       DATE          NOT NULL,
     description    TEXT,
     amount_due     DECIMAL(15,2) NOT NULL,
-    status         VARCHAR(50)   NOT NULL DEFAULT 'UNPAID',
-    voided         BOOLEAN       NOT NULL DEFAULT FALSE,
+    status         VARCHAR(50)   NOT NULL DEFAULT 'UNPAID' CHECK (status IN ('UNPAID', 'PARTIALLY_PAID', 'FULLY_PAID', 'VOID')),
     email_sent     BOOLEAN       NOT NULL DEFAULT FALSE,
     attachments    JSONB,
     created_by     UUID          NOT NULL REFERENCES users(id),
@@ -33,6 +32,7 @@ CREATE INDEX idx_invoices_client_status ON invoices(client_id, status);
 -- Invoice payments
 CREATE TABLE invoice_payments (
     id          UUID PRIMARY KEY,
+    version     BIGINT        NOT NULL DEFAULT 0,
     invoice_id  UUID          NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
     date        DATE          NOT NULL,
     amount      DECIMAL(15,2) NOT NULL,

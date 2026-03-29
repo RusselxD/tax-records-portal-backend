@@ -12,6 +12,8 @@ public interface TaxTaskNameRepository extends JpaRepository<TaxTaskName, Intege
 
     boolean existsByNameAndSubCategoryId(String name, Integer subCategoryId);
 
+    boolean existsBySubCategoryId(Integer subCategoryId);
+
     @EntityGraph(attributePaths = {"subCategory"})
     @Query("SELECT tn FROM TaxTaskName tn")
     List<TaxTaskName> findAllWithSubCategory();

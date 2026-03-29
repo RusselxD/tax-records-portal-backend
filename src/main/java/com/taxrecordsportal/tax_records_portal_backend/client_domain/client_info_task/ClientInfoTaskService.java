@@ -16,17 +16,17 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse.SectionDiff;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ProfileUpdateReviewResponse.Submitter;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.dto.response.ClientInfoLogItemResponse;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.dto.response.ClientInfoTaskLogCommentResponse;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.dto.response.ClientInfoTaskLogResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.ClientInfoTaskLog;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.ClientInfoTaskLogAction;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task_log.ClientInfoTaskLogRepository;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.NotificationService;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.NotificationType;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.ReferenceType;
+import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.ReviewerNotificationHelper;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.RoleKey;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserRepository;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserStatus;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.AccountantListItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.mapper.UserMapper;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
@@ -51,6 +51,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.taxrecordsportal.tax_records_portal_backend.common.util.ClientAccessHelper;
 import com.taxrecordsportal.tax_records_portal_backend.common.util.UserDisplayUtil;
 
 import static com.taxrecordsportal.tax_records_portal_backend.common.util.SecurityUtil.getCurrentUser;
@@ -62,9 +63,10 @@ public class ClientInfoTaskService {
     private final ClientInfoTaskRepository clientInfoTaskRepository;
     private final ClientInfoTaskLogRepository clientInfoTaskLogRepository;
     private final ClientRepository clientRepository;
-    private final UserRepository userRepository;
+    private final ClientAccessHelper clientAccessHelper;
     private final UserMapper userMapper;
     private final NotificationService notificationService;
+    private final ReviewerNotificationHelper reviewerNotificationHelper;
     private final ProfileDiffService profileDiffService;
 
     @Transactional(readOnly = true)
@@ -151,7 +153,7 @@ public class ClientInfoTaskService {
         }
 
         User currentUser = getCurrentUser();
-        String comment = request != null ? request.comment() : null;
+        Map<String, Object> comment = request != null ? request.comment() : null;
 
         // One task per client — reuse existing, create if none
         Optional<ClientInfoTask> existingTask = clientInfoTaskRepository
@@ -177,17 +179,8 @@ public class ClientInfoTaskService {
         String clientName = computeClientName(info.getClientInformation());
         String message = "Client profile submitted for review: " + (clientName != null ? clientName : "Unknown");
 
-        // Notify all active MANAGER users + QTD users assigned to this client
-        List<User> managers = userRepository.findByRole_KeyInAndStatus(
-                List.of(RoleKey.MANAGER), UserStatus.ACTIVE);
-        List<User> assignedQtd = client.getAccountants() == null ? List.of()
-                : client.getAccountants().stream()
-                        .filter(a -> a.getRole().getKey() == RoleKey.QTD && a.getStatus() == UserStatus.ACTIVE)
-                        .toList();
-        List<User> reviewers = Stream.concat(managers.stream(), assignedQtd.stream()).toList();
-
-        notificationService.notifyAll(reviewers, NotificationType.PROFILE_SUBMITTED,
-                task.getId(), ReferenceType.CLIENT_INFO, message);
+        reviewerNotificationHelper.notifyReviewers(
+                client, task.getId(), NotificationType.PROFILE_SUBMITTED, ReferenceType.CLIENT_INFO, message);
     }
 
     @Transactional
@@ -207,7 +200,7 @@ public class ClientInfoTaskService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not assigned to this client");
         }
 
-        String comment = request != null ? request.comment() : null;
+        Map<String, Object> comment = request != null ? request.comment() : null;
 
         Optional<ClientInfoTask> existingTask = clientInfoTaskRepository
                 .findTopByClientIdAndTypeOrderBySubmittedAtDesc(clientId, ClientInfoTaskType.PROFILE_UPDATE);
@@ -240,15 +233,8 @@ public class ClientInfoTaskService {
         String clientName = computeClientName(ci);
         String message = "Client profile update submitted for review: " + (clientName != null ? clientName : "Unknown");
 
-        List<User> managers = userRepository.findByRole_KeyInAndStatus(List.of(RoleKey.MANAGER), UserStatus.ACTIVE);
-        List<User> assignedQtd = client.getAccountants() == null ? List.of()
-                : client.getAccountants().stream()
-                        .filter(a -> a.getRole().getKey() == RoleKey.QTD && a.getStatus() == UserStatus.ACTIVE)
-                        .toList();
-        List<User> reviewers = Stream.concat(managers.stream(), assignedQtd.stream()).toList();
-
-        notificationService.notifyAll(reviewers, NotificationType.PROFILE_SUBMITTED,
-                task.getId(), ReferenceType.CLIENT_INFO_EDIT, message);
+        reviewerNotificationHelper.notifyReviewers(
+                client, task.getId(), NotificationType.PROFILE_SUBMITTED, ReferenceType.CLIENT_INFO_EDIT, message);
     }
 
     @Transactional
@@ -266,7 +252,7 @@ public class ClientInfoTaskService {
         task.setStatus(ClientInfoTaskStatus.REJECTED);
         clientInfoTaskRepository.save(task);
 
-        String comment = request != null ? request.comment() : null;
+        Map<String, Object> comment = request != null ? request.comment() : null;
         logAction(task, ClientInfoTaskLogAction.REJECTED, comment, currentUser);
 
         // Notify the submitter
@@ -293,7 +279,7 @@ public class ClientInfoTaskService {
         Client client = task.getClient();
         User currentUser = getCurrentUser();
         verifyClientAccess(client.getId(), currentUser);
-        String comment = request != null ? request.comment() : null;
+        Map<String, Object> comment = request != null ? request.comment() : null;
 
         // Compute and persist full diff before overwrite
         ClientInfo info = client.getClientInfo();
@@ -340,7 +326,7 @@ public class ClientInfoTaskService {
                 ? new Submitter(submitter.getId(), UserDisplayUtil.formatDisplayName(submitter))
                 : null;
 
-        String comment = clientInfoTaskLogRepository
+        Map<String, Object> comment = clientInfoTaskLogRepository
                 .findTopByTaskIdAndActionInOrderByCreatedAtDesc(task.getId(),
                         List.of(ClientInfoTaskLogAction.SUBMITTED, ClientInfoTaskLogAction.RESUBMITTED))
                 .map(ClientInfoTaskLog::getComment)
@@ -418,16 +404,25 @@ public class ClientInfoTaskService {
     }
 
     @Transactional(readOnly = true)
-    public List<ClientInfoLogItemResponse> getLogsByTaskId(UUID taskId) {
+    public List<ClientInfoTaskLogResponse> getLogsByTaskId(UUID taskId) {
         return clientInfoTaskLogRepository.findByTaskIdOrderByCreatedAtDesc(taskId)
                 .stream()
-                .map(log -> new ClientInfoLogItemResponse(
+                .map(log -> new ClientInfoTaskLogResponse(
+                        log.getId(),
                         UserDisplayUtil.formatDisplayName(log.getPerformedBy()),
                         log.getAction(),
-                        log.getComment(),
+                        log.getComment() != null && !log.getComment().isEmpty(),
                         log.getCreatedAt()
                 ))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ClientInfoTaskLogCommentResponse getLogComment(UUID taskId, UUID logId) {
+        var log = clientInfoTaskLogRepository.findById(logId)
+                .filter(l -> l.getTask().getId().equals(taskId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Log not found"));
+        return new ClientInfoTaskLogCommentResponse(log.getId(), log.getComment());
     }
 
     private String computeClientName(ClientInformation ci) {
@@ -489,14 +484,10 @@ public class ClientInfoTaskService {
 
         Client client = clientRepository.findWithAccountantsById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
-        boolean isAssigned = client.getAccountants() != null
-                && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
-        if (!isAssigned) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not assigned to this client");
-        }
+        clientAccessHelper.enforceAccess(client, "You are not assigned to this client", "client.view.all");
     }
 
-    private void logAction(ClientInfoTask task, ClientInfoTaskLogAction action, String comment, User performer) {
+    private void logAction(ClientInfoTask task, ClientInfoTaskLogAction action, Map<String, Object> comment, User performer) {
         ClientInfoTaskLog log = new ClientInfoTaskLog();
         log.setTask(task);
         log.setAction(action);

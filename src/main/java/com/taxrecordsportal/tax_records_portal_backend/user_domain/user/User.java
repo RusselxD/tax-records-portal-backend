@@ -1,5 +1,6 @@
 package com.taxrecordsportal.tax_records_portal_backend.user_domain.user;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Client;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.employee_position.EmployeePosition;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.Role;
@@ -92,6 +93,10 @@ public class User implements UserDetails { // Spring security interface
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Version
+    private Long version;
+
+    @JsonIgnore
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return role.getPermissions().stream()
@@ -99,12 +104,14 @@ public class User implements UserDetails { // Spring security interface
                 .toList();
     }
 
+    @JsonIgnore
     @Override
     public String getPassword(){
         return passwordHash;
     }
 
     // Spring Security uses this as the unique identifier (like a username)
+    @JsonIgnore
     @Override
     public String getUsername(){
         return email;

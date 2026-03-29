@@ -12,6 +12,7 @@ import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_ta
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.request.AddWorkingLinkRequest;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaxRecordTaskFilesResponse;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaxRecordTaskFilesResponse.FileItem;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaxRecordTaskLogCommentResponse;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaxRecordTaskLogResponse;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task_log.TaxRecordTaskLogRepository;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
@@ -146,7 +147,7 @@ public class TaxRecordTaskFileService {
         FileEntity fileEntity = fileService.getFileEntity(uploaded.id());
         task.setOutputFile(fileEntity);
         taxRecordTaskRepository.save(task);
-        return new FileItem(fileEntity.getId(), fileEntity.getName(), fileEntity.getUrl());
+        return new FileItem(fileEntity.getId(), fileEntity.getName());
     }
 
     @Transactional
@@ -178,7 +179,7 @@ public class TaxRecordTaskFileService {
         FileEntity fileEntity = fileService.getFileEntity(uploaded.id());
         task.setProofOfFilingFile(fileEntity);
         taxRecordTaskRepository.save(task);
-        return new FileItem(fileEntity.getId(), fileEntity.getName(), fileEntity.getUrl());
+        return new FileItem(fileEntity.getId(), fileEntity.getName());
     }
 
     @Transactional
@@ -205,10 +206,19 @@ public class TaxRecordTaskFileService {
                 .map(log -> new TaxRecordTaskLogResponse(
                         log.getId(),
                         log.getAction(),
-                        log.getComment(),
+                        log.getComment() != null && !log.getComment().isEmpty(),
                         UserDisplayUtil.formatDisplayName(log.getPerformedBy()),
                         log.getCreatedAt()))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public TaxRecordTaskLogCommentResponse getLogComment(UUID taskId, UUID logId) {
+        accessHelper.enforceViewAccess(accessHelper.findTaskForFileOps(taskId));
+        var log = taxRecordTaskLogRepository.findById(logId)
+                .filter(l -> l.getTask().getId().equals(taskId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Log not found"));
+        return new TaxRecordTaskLogCommentResponse(log.getId(), log.getComment());
     }
 
     // --- Helpers ---
@@ -233,11 +243,11 @@ public class TaxRecordTaskFileService {
                 ? task.getWorkingFiles() : List.of();
 
         FileItem outputFile = task.getOutputFile() != null
-                ? new FileItem(task.getOutputFile().getId(), task.getOutputFile().getName(), task.getOutputFile().getUrl())
+                ? new FileItem(task.getOutputFile().getId(), task.getOutputFile().getName())
                 : null;
 
         FileItem proofOfFiling = task.getProofOfFilingFile() != null
-                ? new FileItem(task.getProofOfFilingFile().getId(), task.getProofOfFilingFile().getName(), task.getProofOfFilingFile().getUrl())
+                ? new FileItem(task.getProofOfFilingFile().getId(), task.getProofOfFilingFile().getName())
                 : null;
 
         return new TaxRecordTaskFilesResponse(workingFiles, outputFile, proofOfFiling);

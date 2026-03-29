@@ -57,4 +57,7 @@ public class InvoicePayment {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Version
+    private Long version;
 }

@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.Set;
 
 import static jakarta.persistence.GenerationType.IDENTITY;
@@ -31,9 +33,7 @@ public class Permission {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private String description;
-
+    @JsonIgnore
     @ManyToMany(mappedBy = "permissions", fetch = LAZY)
     @ToString.Exclude
     private Set<Role> roles;

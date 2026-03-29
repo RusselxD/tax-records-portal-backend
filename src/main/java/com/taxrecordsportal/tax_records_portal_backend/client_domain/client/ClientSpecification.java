@@ -14,6 +14,10 @@ public final class ClientSpecification {
 
     private ClientSpecification() {}
 
+    private static String escapeLike(String input) {
+        return input.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
     /**
      * @param search       partial client name match (JSONB clientInformation cast to text)
      * @param scopedUserId non-null = only clients assigned to this user
@@ -34,7 +38,7 @@ public final class ClientSpecification {
 
             // Search: client name inside JSONB
             if (search != null && !search.isBlank()) {
-                String pattern = "%" + search.toLowerCase() + "%";
+                String pattern = "%" + escapeLike(search.toLowerCase()) + "%";
                 predicates.add(cb.like(
                         cb.lower(cb.concat(
                                 root.get("clientInfo").get("clientInformation").as(String.class), "")),

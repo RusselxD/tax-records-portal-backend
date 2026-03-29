@@ -8,14 +8,19 @@ import java.util.List;
 public record DrillDownResponse(
         String level,
         List<DrillDownItemResponse> items,
-        TaxRecordEntryResponse record
+        TaxRecordEntryResponse record,
+        Boolean taxRecordsProtected
 ) {
 
     public static DrillDownResponse ofItems(String level, List<DrillDownItemResponse> items) {
-        return new DrillDownResponse(level, items, null);
+        return new DrillDownResponse(level, items, null, null);
     }
 
     public static DrillDownResponse ofRecord(TaxRecordEntryResponse record) {
-        return new DrillDownResponse("record", null, record);
+        return new DrillDownResponse("record", null, record, null);
+    }
+
+    public DrillDownResponse withTaxRecordsProtected(boolean taxRecordsProtected) {
+        return new DrillDownResponse(level, items, record, taxRecordsProtected);
     }
 }

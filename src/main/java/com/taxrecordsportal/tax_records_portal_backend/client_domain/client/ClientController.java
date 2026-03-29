@@ -2,14 +2,15 @@ package com.taxrecordsportal.tax_records_portal_backend.client_domain.client;
 
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.ScrollResponse;
 import tools.jackson.databind.JsonNode;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.request.ClientActivateRequest;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.request.ClientStatusUpdateRequest;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.request.*;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.dto.FileReference;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.*;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.ClientInfoTaskService;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.dto.response.ArchiveSnapshotResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,8 @@ import java.util.UUID;
 public class ClientController {
 
     private final ClientService clientService;
+    private final ClientActivationService clientActivationService;
+    private final ClientOffboardingService clientOffboardingService;
     private final ClientInfoTaskService clientInfoTaskService;
 
     @GetMapping
@@ -38,8 +41,20 @@ public class ClientController {
 
     @GetMapping("/onboarding")
     @PreAuthorize("hasAuthority('client.view.own')")
-    public ResponseEntity<List<OnboardingClientListItemResponse>> getOnboardingClients() {
-        return ResponseEntity.ok(clientService.getOnboardingClients());
+    public ResponseEntity<List<OnboardingClientListItemResponse>> getOnboardingClients(
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(clientService.getOnboardingClients(search));
+    }
+
+    @GetMapping("/offboarding")
+    @PreAuthorize("hasAuthority('client.view.own')")
+    public ResponseEntity<?> getOffboardingClients(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null) {
+            return ResponseEntity.ok(clientOffboardingService.getOffboardingClientsPaged(page, size != null ? size : 20));
+        }
+        return ResponseEntity.ok(clientOffboardingService.getOffboardingClients());
     }
 
     @GetMapping("/assigned")
@@ -60,7 +75,7 @@ public class ClientController {
     @PostMapping
     @PreAuthorize("hasAuthority('client.create')")
     public ResponseEntity<ClientCreateResponse> createClient() {
-        return ResponseEntity.ok(clientService.createClient());
+        return ResponseEntity.status(HttpStatus.CREATED).body(clientService.createClient());
     }
 
     @GetMapping("/info-template")
@@ -85,8 +100,8 @@ public class ClientController {
     }
 
     @GetMapping("/me/engagement-letters")
-    public ResponseEntity<List<UUID>> getEngagementLetterFileIds() {
-        return ResponseEntity.ok(clientService.getEngagementLetterFileIds());
+    public ResponseEntity<List<FileReference>> getEngagementLetters() {
+        return ResponseEntity.ok(clientService.getEngagementLetters());
     }
 
     @GetMapping("/{clientId}/summary")
@@ -127,7 +142,7 @@ public class ClientController {
             @PathVariable UUID clientId,
             @Valid @RequestBody ClientActivateRequest request
     ) {
-        clientService.activateClient(clientId, request);
+        clientActivationService.activateClient(clientId, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -151,6 +166,46 @@ public class ClientController {
             @Valid @RequestBody ClientStatusUpdateRequest request
     ) {
         clientService.updateClientStatus(clientId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{clientId}/assigned-accountants")
+    @PreAuthorize("hasAuthority('client.reassign')")
+    public ResponseEntity<Void> reassignAccountants(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody ReassignClientAccountantsRequest request
+    ) {
+        clientService.reassignAccountants(clientId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{clientId}/offboard")
+    @PreAuthorize("hasAuthority('client.manage')")
+    public ResponseEntity<Void> offboardClient(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody ClientOffboardRequest request
+    ) {
+        clientOffboardingService.offboardClient(clientId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{clientId}/tax-records-protection")
+    @PreAuthorize("hasAuthority('client.manage')")
+    public ResponseEntity<Void> updateTaxRecordsProtection(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody TaxRecordsProtectionRequest request
+    ) {
+        clientOffboardingService.updateTaxRecordsProtection(clientId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{clientId}/send-end-of-engagement-letter")
+    @PreAuthorize("hasAuthority('client.create') or hasAuthority('client.manage')")
+    public ResponseEntity<Void> sendEndOfEngagementLetter(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody SendEndOfEngagementLetterRequest request
+    ) {
+        clientOffboardingService.sendEndOfEngagementLetter(clientId, request);
         return ResponseEntity.noContent().build();
     }
 

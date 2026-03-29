@@ -32,7 +32,9 @@ import static jakarta.persistence.GenerationType.UUID;
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Table(name = "tax_record_entries", indexes = {
-        @Index(name = "idx_tre_client_id", columnList = "client_id")
+        @Index(name = "idx_tre_client_id", columnList = "client_id"),
+        @Index(name = "idx_tre_client_category", columnList = "client_id, category_id"),
+        @Index(name = "idx_tre_client_taskname_year", columnList = "client_id, task_name_id, year")
 })
 public class TaxRecordEntry {
 

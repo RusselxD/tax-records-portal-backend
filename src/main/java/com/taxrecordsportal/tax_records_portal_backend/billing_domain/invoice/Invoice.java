@@ -74,9 +74,6 @@ public class Invoice {
     @Column(name = "status", nullable = false)
     private InvoiceStatus status = InvoiceStatus.UNPAID;
 
-    @Column(name = "voided", nullable = false)
-    private boolean voided = false;
-
     @Column(name = "email_sent", nullable = false)
     private boolean emailSent = false;
 

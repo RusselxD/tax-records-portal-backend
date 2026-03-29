@@ -3,6 +3,7 @@ package com.taxrecordsportal.tax_records_portal_backend.common_domain.security;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserDetailsServiceImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -41,14 +42,17 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers
+                        .contentTypeOptions(contentTypeOptions -> {})
+                        .frameOptions(frame -> frame.deny())
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/api/v1/tokens/verify/**",
                                 "/api/v1/users/*/avatar",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**",
                                 "/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/files/images/*").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

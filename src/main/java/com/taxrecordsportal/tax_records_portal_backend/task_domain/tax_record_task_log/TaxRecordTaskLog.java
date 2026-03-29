@@ -10,7 +10,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 import static jakarta.persistence.FetchType.LAZY;
@@ -42,8 +46,9 @@ public class TaxRecordTaskLog {
     @Column(nullable = false)
     private TaxRecordTaskLogAction action;
 
-    @Column(columnDefinition = "TEXT")
-    private String comment;
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private Map<String, Object> comment;
 
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "performed_by", nullable = false)

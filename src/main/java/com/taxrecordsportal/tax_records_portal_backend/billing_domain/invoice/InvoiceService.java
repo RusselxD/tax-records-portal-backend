@@ -1,7 +1,9 @@
 package com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice;
 
+import com.taxrecordsportal.tax_records_portal_backend.common.util.ClientDisplayNameUtil;
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.request.InvoiceCreateRequest;
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.request.ReceivePaymentRequest;
+import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.request.UpdatePaymentRequest;
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.dto.response.*;
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice.mapper.InvoiceMapper;
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice_payment.InvoicePayment;
@@ -10,6 +12,7 @@ import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice_te
 import com.taxrecordsportal.tax_records_portal_backend.billing_domain.invoice_term.InvoiceTermRepository;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.Client;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.ClientRepository;
+import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileService;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.dto.FileReference;
 import com.taxrecordsportal.tax_records_portal_backend.common.R2StorageService;
@@ -23,11 +26,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import static com.taxrecordsportal.tax_records_portal_backend.common.util.SecurityUtil.getCurrentUser;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -42,6 +47,7 @@ public class InvoiceService {
     private final InvoiceTermRepository invoiceTermRepository;
     private final ClientRepository clientRepository;
     private final FileRepository fileRepository;
+    private final FileService fileService;
     private final R2StorageService r2StorageService;
     private final EmailService emailService;
     private final InvoiceMapper invoiceMapper;
@@ -62,22 +68,15 @@ public class InvoiceService {
     }
 
     private String buildDisplayName(String registeredName, String tradeName) {
-        if (registeredName != null && tradeName != null) {
-            return registeredName + " (" + tradeName + ")";
-        }
-        if (registeredName != null) return registeredName;
-        return tradeName;
+        return ClientDisplayNameUtil.format(registeredName, tradeName);
     }
 
-    public PageResponse<InvoiceListItemResponse> getInvoices(UUID clientId, int page, int size) {
+    @Transactional(readOnly = true)
+    public PageResponse<InvoiceListItemResponse> getInvoices(UUID clientId, InvoiceStatus status, String search, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
 
-        Page<Invoice> result;
-        if (clientId != null) {
-            result = invoiceRepository.findByClientIdOrderByCreatedAtDesc(clientId, pageable);
-        } else {
-            result = invoiceRepository.findAllByOrderByCreatedAtDesc(pageable);
-        }
+        Page<Invoice> result = invoiceRepository.findAll(
+                InvoiceSpecification.withFilters(clientId, status, search), pageable);
 
         Map<UUID, String> clientNames = batchFetchClientNames(result.getContent());
         Set<UUID> clientsWithEmail = batchCheckEmailRecipients(result.getContent());
@@ -120,6 +119,31 @@ public class InvoiceService {
                         p -> buildDisplayName(p.getRegisteredName(), p.getTradeName()),
                         (a, b) -> a
                 ));
+    }
+
+    @Transactional(readOnly = true)
+    public ClientInvoiceSidebarPageResponse getClientInvoices(UUID clientId, String filter, int page, int size) {
+        boolean outstanding = "outstanding".equalsIgnoreCase(filter);
+
+        Pageable pageable = outstanding
+                ? PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "dueDate"))
+                : PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "invoiceDate"));
+
+        Page<Invoice> invoicePage = outstanding
+                ? invoiceRepository.findByClientIdAndStatusIn(clientId,
+                        List.of(InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID), pageable)
+                : invoiceRepository.findByClientId(clientId, pageable);
+
+        List<ClientInvoiceSidebarItem> items = invoicePage.getContent().stream()
+                .map(invoiceMapper::toSidebarItem)
+                .toList();
+
+        BigDecimal totalBalance = invoiceRepository.computeOutstandingBalance(
+                clientId, List.of("UNPAID", "PARTIALLY_PAID"));
+
+        return new ClientInvoiceSidebarPageResponse(
+                items, page, size, invoicePage.getTotalElements(),
+                invoicePage.getTotalPages(), totalBalance);
     }
 
     @Transactional(readOnly = true)
@@ -284,9 +308,13 @@ public class InvoiceService {
             return List.of();
         }
 
+        List<UUID> fileIds = invoice.getAttachments().stream().map(FileReference::id).toList();
+        Map<UUID, FileEntity> fileMap = fileRepository.findAllById(fileIds).stream()
+                .collect(java.util.stream.Collectors.toMap(FileEntity::getId, f -> f));
+
         List<Attachments> result = new ArrayList<>();
         for (FileReference ref : invoice.getAttachments()) {
-            FileEntity file = fileRepository.findById(ref.id()).orElse(null);
+            FileEntity file = fileMap.get(ref.id());
             if (file == null) continue;
 
             try (var inputStream = r2StorageService.download(file.getUrl())) {
@@ -307,10 +335,9 @@ public class InvoiceService {
 
     @Transactional
     public void deleteInvoice(UUID invoiceId) {
-        if (!invoiceRepository.existsById(invoiceId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found");
-        }
-        invoiceRepository.deleteById(invoiceId);
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+        invoiceRepository.delete(invoice);
     }
 
     @Transactional
@@ -318,11 +345,10 @@ public class InvoiceService {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
 
-        if (invoice.isVoided()) {
+        if (invoice.getStatus() == InvoiceStatus.VOID) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice is already voided.");
         }
 
-        invoice.setVoided(true);
         invoice.setStatus(InvoiceStatus.VOID);
         invoiceRepository.save(invoice);
     }
@@ -332,7 +358,7 @@ public class InvoiceService {
         Invoice invoice = invoiceRepository.findWithDetailsById(invoiceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
 
-        if (invoice.isVoided()) {
+        if (invoice.getStatus() == InvoiceStatus.VOID) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot receive payment on a voided invoice.");
         }
 
@@ -356,9 +382,40 @@ public class InvoiceService {
         return invoiceMapper.toPaymentResponse(saved);
     }
 
+    @Transactional
+    public InvoicePaymentResponse updatePayment(UUID invoiceId, UUID paymentId, UpdatePaymentRequest request) {
+        Invoice invoice = invoiceRepository.findWithDetailsById(invoiceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+
+        InvoicePayment payment = invoice.getPayments().stream()
+                .filter(p -> p.getId().equals(paymentId))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        if (request.date() != null) payment.setDate(request.date());
+        if (request.amount() != null) payment.setAmount(request.amount());
+        if (request.attachments() != null) {
+            // Delete old attachments that are not in the new list
+            if (payment.getAttachments() != null) {
+                Set<UUID> newIds = request.attachments().stream()
+                        .map(FileReference::id).collect(java.util.stream.Collectors.toSet());
+                payment.getAttachments().stream()
+                        .filter(f -> !newIds.contains(f.id()))
+                        .forEach(f -> fileService.delete(f.id()));
+            }
+            payment.setAttachments(request.attachments());
+        }
+
+        invoicePaymentRepository.save(payment);
+
+        recomputeStatus(invoice);
+        invoiceRepository.save(invoice);
+
+        return invoiceMapper.toPaymentResponse(payment);
+    }
+
     private void recomputeStatus(Invoice invoice) {
-        if (invoice.isVoided()) {
-            invoice.setStatus(InvoiceStatus.VOID);
+        if (invoice.getStatus() == InvoiceStatus.VOID) {
             return;
         }
 
@@ -372,7 +429,4 @@ public class InvoiceService {
         }
     }
 
-    private User getCurrentUser() {
-        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-    }
 }

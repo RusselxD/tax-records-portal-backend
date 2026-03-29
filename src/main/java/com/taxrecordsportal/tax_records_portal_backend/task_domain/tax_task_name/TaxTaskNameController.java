@@ -1,7 +1,7 @@
 package com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_name;
 
-import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_name.dto.request.CreateTaxTaskNameRequest;
-import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_task_name.dto.response.TaxTaskNameResponse;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.request.CreateTaxRecordLookupRequest;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaxRecordLookupResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -12,24 +12,29 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/tax-task-sub-categories/{subCategoryId}/task-names")
 @RequiredArgsConstructor
 public class TaxTaskNameController {
 
     private final TaxTaskNameService taxTaskNameService;
 
-    @GetMapping
+    @GetMapping("/api/v1/tax-record-sub-categories/{subCategoryId}/task-names")
     @PreAuthorize("hasAuthority('task.create')")
-    public ResponseEntity<List<TaxTaskNameResponse>> getBySubCategory(@PathVariable Integer subCategoryId) {
+    public ResponseEntity<List<TaxRecordLookupResponse>> getBySubCategory(@PathVariable Integer subCategoryId) {
         return ResponseEntity.ok(taxTaskNameService.getBySubCategory(subCategoryId));
     }
 
-    @PostMapping
-    @PreAuthorize("hasAuthority('tax_task_category.manage')")
-    public ResponseEntity<TaxTaskNameResponse> create(
+    @PostMapping("/api/v1/tax-record-sub-categories/{subCategoryId}/task-names")
+    @PreAuthorize("hasAuthority('task.create')")
+    public ResponseEntity<TaxRecordLookupResponse> create(
             @PathVariable Integer subCategoryId,
-            @Valid @RequestBody CreateTaxTaskNameRequest request
-    ) {
+            @Valid @RequestBody CreateTaxRecordLookupRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(taxTaskNameService.create(subCategoryId, request.name()));
+    }
+
+    @DeleteMapping("/api/v1/tax-record-sub-categories/{subCategoryId}/task-names/{taskNameId}")
+    @PreAuthorize("hasAuthority('task.create')")
+    public ResponseEntity<Void> delete(@PathVariable Integer subCategoryId, @PathVariable Integer taskNameId) {
+        taxTaskNameService.delete(subCategoryId, taskNameId);
+        return ResponseEntity.noContent().build();
     }
 }

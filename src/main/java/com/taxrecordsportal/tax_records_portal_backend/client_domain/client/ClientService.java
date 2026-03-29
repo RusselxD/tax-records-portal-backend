@@ -4,17 +4,8 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.taxrecordsportal.tax_records_portal_backend.common.exception.ClientInfoSectionException;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.request.ClientActivateRequest;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.request.ClientStatusUpdateRequest;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.request.MainDetailsPatchRequest;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.AssignedClientsListItemResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.ClientCreateResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.ClientListItemResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.ClientLookupResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.ClientSummaryResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.ClientInfoHeaderResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.ClientInfoResponse;
-import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.OnboardingClientListItemResponse;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.request.*;
+import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.dto.response.*;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client.mapper.ClientMapper;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.ClientInfo;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.ClientInfoRepository;
@@ -25,29 +16,24 @@ import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.ClientInfoTaskRepository;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.ClientInfoTaskStatus;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info_task.ClientInfoTaskType;
+import com.taxrecordsportal.tax_records_portal_backend.consultation_domain.client_consultation_config.ClientConsultationConfig;
+import com.taxrecordsportal.tax_records_portal_backend.consultation_domain.client_consultation_config.ClientConsultationConfigRepository;
+import com.taxrecordsportal.tax_records_portal_backend.common.util.ClientAccessHelper;
 import com.taxrecordsportal.tax_records_portal_backend.common.util.UserDisplayUtil;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.PageResponse;
 import com.taxrecordsportal.tax_records_portal_backend.common.dto.ScrollResponse;
-import com.taxrecordsportal.tax_records_portal_backend.common_domain.email.EmailService;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.TaxRecordTaskRepository;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.ClientTaskMetrics;
 import com.taxrecordsportal.tax_records_portal_backend.file_domain.file.FileService;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.NotificationService;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.NotificationType;
 import com.taxrecordsportal.tax_records_portal_backend.notifications_domain.notification.ReferenceType;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.Role;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.RoleKey;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.role.RoleRepository;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserRepository;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.UserStatus;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.dto.response.AccountantListItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.mapper.UserMapper;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.TokenType;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.UserToken;
-import com.taxrecordsportal.tax_records_portal_backend.user_domain.user_tokens.UserTokenRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,23 +61,19 @@ public class ClientService {
     private final ClientRepository clientRepository;
     private final ClientInfoRepository clientInfoRepository;
     private final ClientInfoTemplateRepository clientInfoTemplateRepository;
+    private final ClientConsultationConfigRepository consultationConfigRepository;
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
-    private final UserTokenRepository userTokenRepository;
     private final ClientInfoTaskRepository clientInfoTaskRepository;
     private final FileService fileService;
-    private final EmailService emailService;
     private final NotificationService notificationService;
     private final TaxRecordTaskRepository taxRecordTaskRepository;
+    private final ClientAccessHelper clientAccessHelper;
     private final ClientMapper clientMapper;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
 
-    @Value("${application.security.jwt.activation-token-expiration}")
-    private long activationTokenExpiration;
-
     @Transactional(readOnly = true)
-    public List<OnboardingClientListItemResponse> getOnboardingClients() {
+    public List<OnboardingClientListItemResponse> getOnboardingClients(String search) {
         List<Client> clients = clientRepository.findByCreatedById(getCurrentUser().getId());
         List<UUID> clientIds = clients.stream().map(Client::getId).toList();
 
@@ -103,7 +85,7 @@ public class ClientService {
                 .findLatestTasksByClientIds(clientIds).stream()
                 .collect(Collectors.toMap(t -> t.getClient().getId(), t -> t.getId()));
 
-        return clients.stream()
+        var results = clients.stream()
                 .map(client -> {
                     OnboardingClientListItemResponse base = clientMapper.toOnboardingListItem(client);
                     UUID activeTaskId = activeTaskIdByClientId.get(client.getId());
@@ -117,6 +99,15 @@ public class ClientService {
                     );
                 })
                 .toList();
+
+        if (search != null && !search.isBlank()) {
+            String lower = search.toLowerCase();
+            results = results.stream()
+                    .filter(r -> r.name() != null && r.name().toLowerCase().contains(lower))
+                    .toList();
+        }
+
+        return results;
     }
 
     @Transactional(readOnly = true)
@@ -143,6 +134,12 @@ public class ClientService {
         ClientInfo clientInfo = clientMapper.fromTemplate(template);
         clientInfo.setClient(savedClient);
         clientInfoRepository.save(clientInfo);
+
+        ClientConsultationConfig consultationConfig = new ClientConsultationConfig();
+        consultationConfig.setClient(savedClient);
+        consultationConfig.setIncludedHours(BigDecimal.valueOf(2));
+        consultationConfig.setExcessRate(BigDecimal.valueOf(500));
+        consultationConfigRepository.save(consultationConfig);
 
         return new ClientCreateResponse(savedClient.getId());
     }
@@ -195,38 +192,13 @@ public class ClientService {
     private void enforceClientInfoAccess(UUID clientId) {
         Client client = clientRepository.findWithCreatorAndAccountantsById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
-
-        User currentUser = getCurrentUser();
-        boolean hasViewAll = currentUser.getAuthorities().stream()
-                .anyMatch(a -> Objects.equals(a.getAuthority(), "client_info.view.all"));
-
-        if (!hasViewAll) {
-            boolean isCreator = client.getCreatedBy().getId().equals(currentUser.getId());
-            boolean isAssigned = client.getAccountants() != null
-                    && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
-            if (!isCreator && !isAssigned) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this client");
-            }
-        }
+        clientAccessHelper.enforceAccess(client, "You do not have access to this client", "client_info.view.all");
     }
 
     private Client findAccessibleClientWithInfo(UUID clientId) {
         Client client = clientRepository.findWithInfoCreatorAndAccountantsById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
-
-        User currentUser = getCurrentUser();
-        boolean hasViewAll = currentUser.getAuthorities().stream()
-                .anyMatch(a -> Objects.equals(a.getAuthority(), "client_info.view.all"));
-
-        if (!hasViewAll) {
-            boolean isCreator = client.getCreatedBy().getId().equals(currentUser.getId());
-            boolean isAssigned = client.getAccountants() != null
-                    && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
-            if (!isCreator && !isAssigned) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this client");
-            }
-        }
-
+        clientAccessHelper.enforceAccess(client, "You do not have access to this client", "client_info.view.all");
         return client;
     }
 
@@ -275,8 +247,14 @@ public class ClientService {
             metricsMap = metrics.stream()
                     .collect(Collectors.toMap(ClientTaskMetrics::getClientId, m -> m));
 
-            accountantsMap = clientRepository.findByIdIn(clientIds).stream()
-                    .collect(Collectors.toMap(Client::getId, c -> c.getAccountants() != null ? c.getAccountants() : Set.of()));
+            List<Object[]> accountantRows = clientRepository.findAccountantsByClientIds(clientIds);
+            Map<UUID, Set<User>> accountantsMapTemp = new HashMap<>();
+            for (Object[] row : accountantRows) {
+                UUID cid = (UUID) row[0];
+                User accountant = (User) row[1];
+                accountantsMapTemp.computeIfAbsent(cid, k -> new HashSet<>()).add(accountant);
+            }
+            accountantsMap = accountantsMapTemp;
         }
 
         Map<UUID, ClientTaskMetrics> finalMetricsMap = metricsMap;
@@ -375,50 +353,6 @@ public class ClientService {
     }
 
     @Transactional
-    public void activateClient(UUID clientId, ClientActivateRequest request) {
-        Client client = clientRepository.findWithAccountantsById(clientId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
-
-        User currentUser = getCurrentUser();
-        boolean hasClientCreate = currentUser.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("client.create"));
-        boolean isAssigned = client.getAccountants() != null
-                && client.getAccountants().stream().anyMatch(a -> a.getId().equals(currentUser.getId()));
-        if (!hasClientCreate && !isAssigned) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
-        }
-
-        if (userRepository.findByEmail(request.email()).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
-        }
-
-        Role clientRole = roleRepository.findByKey(RoleKey.CLIENT)
-                .orElseThrow(() -> new RuntimeException("Client role not found"));
-
-        User user = new User();
-        user.setFirstName(request.firstName());
-        user.setLastName(request.lastName());
-        user.setEmail(request.email());
-        user.setRole(clientRole);
-        user.setStatus(UserStatus.PENDING);
-        user.setClient(client);
-        User savedUser = userRepository.save(user);
-
-        UserToken activationToken = new UserToken();
-        activationToken.setUser(savedUser);
-        activationToken.setToken(UUID.randomUUID().toString());
-        activationToken.setType(TokenType.ACCOUNT_ACTIVATION);
-        activationToken.setExpiresAt(Instant.now().plusMillis(activationTokenExpiration));
-        userTokenRepository.save(activationToken);
-
-        emailService.sendActivationEmail(
-                savedUser.getEmail(),
-                savedUser.getFirstName(),
-                activationToken.getToken()
-        );
-    }
-
-    @Transactional
     public void deleteClient(UUID clientId) {
         Client client = clientRepository.findById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
@@ -499,6 +433,38 @@ public class ClientService {
 
     }
 
+    @Transactional
+    public void reassignAccountants(UUID clientId, ReassignClientAccountantsRequest request) {
+        Client client = clientRepository.findWithAccountantsById(clientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+
+        Set<User> newAccountants = new HashSet<>();
+
+        List<User> csdOos = userRepository.findAllById(request.csdOosAccountantIds());
+        if (csdOos.size() != request.csdOosAccountantIds().stream().distinct().count()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "One or more CSD/OOS accountant IDs are invalid");
+        }
+        for (User u : csdOos) {
+            RoleKey key = u.getRole().getKey();
+            if (key != RoleKey.CSD && key != RoleKey.OOS) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "User " + u.getId() + " is not a CSD or OOS accountant");
+            }
+        }
+        newAccountants.addAll(csdOos);
+
+        User qtd = userRepository.findById(request.qtdAccountantId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "QTD accountant not found"));
+        if (qtd.getRole().getKey() != RoleKey.QTD) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "User " + qtd.getId() + " is not a QTD accountant");
+        }
+        newAccountants.add(qtd);
+
+        client.setAccountants(newAccountants);
+        clientRepository.save(client);
+    }
+
     private void updateAccountants(Client client, List<UUID> csdOosAccountantIds, UUID qtdAccountantId) {
         List<UUID> allIds = new ArrayList<>();
         if (csdOosAccountantIds != null) allIds.addAll(csdOosAccountantIds);
@@ -559,19 +525,28 @@ public class ClientService {
                 .anyMatch(t -> t.getType() == ClientInfoTaskType.ONBOARDING
                         && t.getStatus() == ClientInfoTaskStatus.APPROVED);
 
+        ClientOffboarding offboarding = client.getOffboarding();
+        String offboardingAccountantName = offboarding != null && offboarding.getAccountant() != null
+                ? UserDisplayUtil.formatDisplayName(offboarding.getAccountant())
+                : null;
+
         return new ClientInfoHeaderResponse(
                 displayName,
                 taxpayerClassification,
                 client.getStatus(),
-                partitioned.get(false),
-                partitioned.get(true),
-                hasActiveTask,
-                activeTaskId,
-                activeTaskType,
-                lastReviewStatus,
                 pocEmail,
                 isProfileApproved,
-                client.isHandedOff()
+                client.isHandedOff(),
+                new ClientInfoHeaderResponse.AccountantsInfo(
+                        partitioned.get(false), partitioned.get(true)),
+                new ClientInfoHeaderResponse.TaskReviewInfo(
+                        hasActiveTask, activeTaskId, activeTaskType, lastReviewStatus),
+                new ClientInfoHeaderResponse.OffboardingInfo(
+                        offboardingAccountantName,
+                        offboarding != null ? offboarding.getEndOfEngagementDate() : null,
+                        offboarding != null ? offboarding.getDeactivationDate() : null,
+                        offboarding != null && offboarding.isTaxRecordsProtected(),
+                        offboarding != null && offboarding.isEndOfEngagementLetterSent())
         );
     }
 
@@ -635,13 +610,24 @@ public class ClientService {
     }
 
     @Transactional(readOnly = true)
-    public List<UUID> getEngagementLetterFileIds() {
+    public List<FileReference> getEngagementLetters() {
         UUID userId = getCurrentUser().getId();
-        List<String> fileIds = clientInfoRepository.findEngagementLetterFileIdsByUserId(userId);
-        if (fileIds == null || fileIds.isEmpty()) {
+        String json = clientInfoRepository.findEngagementLettersByUserId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
+
+        if (json == null || json.equals("null")) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No engagement letters uploaded");
         }
-        return fileIds.stream().map(UUID::fromString).toList();
+
+        try {
+            List<FileReference> letters = objectMapper.readValue(json, new TypeReference<>() {});
+            if (letters == null || letters.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No engagement letters uploaded");
+            }
+            return letters;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to parse engagement letters");
+        }
     }
 
     @Transactional
@@ -649,6 +635,11 @@ public class ClientService {
         Client client = clientRepository.findById(clientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found"));
         client.setStatus(request.status());
+
+        if (request.status() == ClientStatus.ACTIVE_CLIENT) {
+            client.setOffboarding(null);
+        }
+
         clientRepository.save(client);
     }
 

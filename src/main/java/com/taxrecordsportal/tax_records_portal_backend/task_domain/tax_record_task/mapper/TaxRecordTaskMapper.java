@@ -7,6 +7,7 @@ import com.taxrecordsportal.tax_records_portal_backend.common.util.UserDisplayUt
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.ClientTaxRecordTaskItem;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.ReviewerDecidedItemResponse;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.ReviewerQueueItemResponse;
+import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaskActionsResponse;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaxRecordTaskDetailResponse;
 import com.taxrecordsportal.tax_records_portal_backend.task_domain.tax_record_task.dto.response.TaxRecordTaskListItemResponse;
 import org.springframework.stereotype.Component;
@@ -37,7 +38,7 @@ public class TaxRecordTaskMapper {
                 task.getYear(),
                 task.getPeriod(),
                 task.getStatus(),
-                task.getDeadline(),
+                deadline,
                 formatAssignedNames(task),
                 isOverdue,
                 UserDisplayUtil.formatDisplayName(task.getCreatedBy()),
@@ -59,7 +60,7 @@ public class TaxRecordTaskMapper {
                 task.getYear(),
                 task.getPeriod(),
                 task.getStatus(),
-                task.getDeadline(),
+                deadline,
                 assignedNames,
                 isOverdue,
                 UserDisplayUtil.formatDisplayName(task.getCreatedBy()),
@@ -67,8 +68,9 @@ public class TaxRecordTaskMapper {
         );
     }
 
-    public TaxRecordTaskDetailResponse toDetailResponse(TaxRecordTask task) {
+    public TaxRecordTaskDetailResponse toDetailResponse(TaxRecordTask task, TaskActionsResponse actions) {
         ClientInformation ci = extractClientInfo(task);
+        LocalDate deadline = task.getDeadline().atZone(ZONE_PH).toLocalDate();
 
         return new TaxRecordTaskDetailResponse(
                 task.getId(),
@@ -80,12 +82,13 @@ public class TaxRecordTaskMapper {
                 task.getYear(),
                 task.getPeriod(),
                 task.getDescription(),
-                task.getDeadline(),
+                deadline,
                 task.getStatus(),
                 formatAssignedNames(task),
                 UserDisplayUtil.formatDisplayName(task.getCreatedBy()),
                 task.getCreatedAt(),
-                task.getUpdatedAt()
+                task.getUpdatedAt(),
+                actions
         );
     }
 

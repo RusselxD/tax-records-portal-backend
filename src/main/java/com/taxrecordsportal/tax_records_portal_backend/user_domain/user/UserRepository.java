@@ -31,7 +31,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @EntityGraph(attributePaths = {"role", "position"})
     List<User> findAllByRoleNot(Role role);
 
-    @EntityGraph(attributePaths = {"role"})
+    @EntityGraph(attributePaths = {"role", "position"})
     List<User> findByRole_KeyInAndStatus(List<RoleKey> roleKeys, UserStatus status);
 
     List<User> findByRoleKey(RoleKey roleKey);
@@ -40,4 +40,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     long countByRoleKeyAndCreatedAtSince(@Param("roleKey") RoleKey roleKey, @Param("since") Instant since);
 
     long countByRoleKeyAndStatusNot(RoleKey roleKey, UserStatus status);
+
+    @EntityGraph(attributePaths = {"role"})
+    @Query("SELECT u FROM User u WHERE u.id IN :ids")
+    List<User> findAllByIdsWithRole(@Param("ids") List<UUID> ids);
 }

@@ -1,5 +1,6 @@
 package com.taxrecordsportal.tax_records_portal_backend.client_domain.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.taxrecordsportal.tax_records_portal_backend.user_domain.user.User;
 import com.taxrecordsportal.tax_records_portal_backend.client_domain.client_info.ClientInfo;
 import jakarta.persistence.*;
@@ -39,6 +40,7 @@ public class Client {
     @Version
     private Long version;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "client", fetch = LAZY)
     @BatchSize(size = 20)
     private Set<User> users;
@@ -53,6 +55,9 @@ public class Client {
 
     @Column(name = "handed_off", nullable = false)
     private boolean handedOff = false;
+
+    @OneToOne(mappedBy = "client", cascade = CascadeType.ALL, orphanRemoval = true, fetch = LAZY)
+    private ClientOffboarding offboarding;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
